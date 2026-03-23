@@ -88,10 +88,7 @@
         class="preview-shell"
         style="width: {spreadWidthPx * currentZoom}px; height: {spreadHeightPx * currentZoom}px;"
       >
-        <Ruler orientation="horizontal" lengthPx={spreadWidthPx} unit={settings.unit} dpi={settings.dpi} zoom={currentZoom} />
-        <Ruler orientation="vertical" lengthPx={spreadHeightPx} unit={settings.unit} dpi={settings.dpi} zoom={currentZoom} />
-        
-        <div class="canvas-wrapper">
+        <div class="canvas-wrapper" style="background: rgba(255,0,0,0.1); border: 2px solid red;">
           {#if layout.error}
             <div class="status-overlay error">
               <span class="status-icon">⚠️</span>
@@ -103,6 +100,12 @@
               <p>Preparing layout...</p>
             </div>
           {:else}
+            <!-- Debug Label -->
+            <div style="position: absolute; top: 10px; left: 10px; color: yellow; z-index: 100; font-family: monospace; font-size: 12px; background: rgba(0,0,0,0.8); padding: 4px; pointer-events: none;">
+              Layout: {layout.layoutMode}<br>
+              Size: {Math.round(spreadWidthPx)}x{Math.round(spreadHeightPx)}<br>
+              Zoom: {Math.round(currentZoom * 100)}%
+            </div>
             <KonvaStage />
           {/if}
         </div>

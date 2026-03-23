@@ -77,18 +77,22 @@
             y: 0,
             width: layout.pageWidthPx,
             height: layout.spreadHeightPx,
-            fill: 'white',
+            fill: '#fee2e2', // Light red for visibility
+            stroke: 'red',
+            strokeWidth: 2,
             shadowBlur: 20,
             shadowOpacity: 0.2
           }}
         />
         <Rect
           config={{
-            x: layout.pageWidthPx + layout.spineWidthPx,
+            x: layout.pageWidthPx + (layout.spineWidthPx || 0),
             y: 0,
             width: layout.pageWidthPx,
             height: layout.spreadHeightPx,
-            fill: 'white',
+            fill: '#dcfce7', // Light green for visibility
+            stroke: 'green',
+            strokeWidth: 2,
             shadowBlur: 20,
             shadowOpacity: 0.2
           }}
