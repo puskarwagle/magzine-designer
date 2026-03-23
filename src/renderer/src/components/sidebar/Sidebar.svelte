@@ -113,6 +113,7 @@
     z-index: 20;
     position: relative;
     height: calc(100vh - 1rem); /* Full height minus margins */
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), min-width 0.3s cubic-bezier(0.4, 0, 0.2, 1), max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .sidebar-nav {
@@ -137,6 +138,9 @@
     padding: 1rem;
     overflow-y: auto;
     overflow-x: hidden;
+    transition: opacity 0.2s ease, visibility 0.2s ease, padding 0.3s ease;
+    opacity: 1;
+    visibility: visible;
   }
 
   /* Custom Scrollbar for Content */
@@ -167,6 +171,7 @@
     max-height: 80vh;
     align-self: stretch;
     flex-direction: column;
+    transition: height 0.3s cubic-bezier(0.4, 0, 0.2, 1), min-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   :global(#app-container.menu-top) .sidebar-nav,
@@ -188,7 +193,12 @@
   }
 
   :global(#app-container.menu-collapsed) .sidebar-content {
-    display: none; /* Hide content when collapsed */
+    opacity: 0;
+    visibility: hidden;
+    padding-left: 0;
+    padding-right: 0;
+    flex: 0 0 0px;
+    pointer-events: none;
   }
 
   :global(#app-container.menu-collapsed.menu-top) .sidebar,

@@ -1,5 +1,5 @@
 <script>
-  import { currentMenuStore } from '../../stores/ui.js';
+  import { currentMenuStore, uiSettingsStore } from '../../stores/ui.js';
 
   const menuItems = [
     { id: 'folder', label: 'Images', icon: '📁' },
@@ -21,6 +21,14 @@
 
   function selectMenu(id) {
     currentMenuStore.set(id);
+    // Auto-expand if collapsed and a menu is clicked
+    if ($uiSettingsStore.menuCollapsed) {
+      uiSettingsStore.update(s => ({ ...s, menuCollapsed: false }));
+    }
+  }
+
+  function toggleCollapse() {
+    uiSettingsStore.update(s => ({ ...s, menuCollapsed: !s.menuCollapsed }));
   }
 </script>
 
@@ -35,6 +43,15 @@
         <span class="nav-icon">{item.icon}</span>
       </button>
     {/each}
+  </div>
+  <div class="nav-footer">
+    <button 
+      class="nav-btn collapse-btn { $uiSettingsStore.menuCollapsed ? 'is-collapsed' : '' }"
+      on:click={toggleCollapse}
+      title="Toggle Sidebar"
+    >
+      <span class="nav-icon">◀</span>
+    </button>
   </div>
 </nav>
 
@@ -54,8 +71,7 @@
     overflow-y: auto;
     overflow-x: hidden;
     padding: 0 4px;
-    height: 100%;
-    max-height: none;
+    flex: 1;
     align-items: center;
   }
 
@@ -84,6 +100,25 @@
     max-height: none;
     padding-right: 0;
     padding-bottom: 4px;
+  }
+
+  .nav-footer {
+    display: flex;
+    justify-content: center;
+    padding-top: 0.5rem;
+    margin-top: 0.5rem;
+    border-top: 1px solid #1e293b;
+  }
+
+  :global(#app-container.menu-top) .nav-footer,
+  :global(#app-container.menu-bottom) .nav-footer {
+    border-top: none;
+    border-left: 1px solid #1e293b;
+    padding-top: 0;
+    margin-top: 0;
+    padding-left: 0.5rem;
+    margin-left: 0.5rem;
+    align-items: center;
   }
 
   .nav-btn {
@@ -125,10 +160,31 @@
     box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
   }
 
+  .nav-btn:active {
+    transform: scale(0.95);
+  }
+
   .nav-icon {
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 1.5rem;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .collapse-btn {
+    color: #cbd5e1;
+  }
+
+  .collapse-btn.is-collapsed .nav-icon {
+    transform: rotate(180deg);
+  }
+
+  :global(#app-container.menu-top) .collapse-btn.is-collapsed .nav-icon {
+    transform: rotate(-90deg);
+  }
+  
+  :global(#app-container.menu-bottom) .collapse-btn.is-collapsed .nav-icon {
+    transform: rotate(90deg);
   }
 </style>
