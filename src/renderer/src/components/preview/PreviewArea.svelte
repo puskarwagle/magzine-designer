@@ -60,15 +60,75 @@
   }
 
   function handleWheel(e) {
-    if (e.ctrlKey) {
+    // ctrlKey or metaKey indicates pinch-to-zoom in most browsers
+    if (e.ctrlKey || e.metaKey) {
       e.preventDefault();
       isAutoFitStore.set(false);
-      const delta = -e.deltaY;
-      const factor = delta > 0 ? 1.1 : 0.9;
-      zoomStore.update(z => {
-        const newZoom = z * factor;
-        return Math.min(Math.max(newZoom, 0.05), 5.0);
-      });
+      
+      const oldZoom = $zoomStore;
+      // Depending on the OS/Browser, deltaY could be small or large. 
+      // Adjust multiplier slightly to make standard pinch more responsive.
+      const factor = Math.exp(-e.deltaY * 0.005);
+      const newZoom = Math.min(Math.max(oldZoom * factor, 0.05), 5.0);
+      
+      if (newZoom !== oldZoom && viewport) {
+        const shell = viewport.querySelector('.preview-shell');
+        if (shell) {
+          const rect = shell.getBoundingClientRect();
+          // Mouse position relative to the shell's top-left, unscaled
+          const pointerX = (e.clientX - rect.left) / oldZoom;
+          const pointerY = (e.clientY - rect.top) / oldZoom;
+          
+          zoomStore.set(newZoom);
+          
+          // Adjust scroll after DOM update to keep pointer centered
+          requestAnimationFrame(() => {
+            const dx = pointerX * (newZoom - oldZoom);
+            const dy = pointerY * (newZoom - oldZoom);
+            viewport.scrollBy(dx, dy);
+          });
+        } else {
+          zoomStore.set(newZoom);
+        }
+      }
+    }
+  }
+
+  // Fallback for native multi-touch events (some Linux trackpad setups map gestures here)
+  let touchPinchStartDist = 0;
+  let touchPinchStartZoom = 1;
+
+  function getPinchDist(e) {
+    if (e.touches.length >= 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      return Math.sqrt(dx * dx + dy * dy);
+    }
+    return 0;
+  }
+
+  function handleTouchStart(e) {
+    if (e.touches.length >= 2) {
+      touchPinchStartDist = getPinchDist(e);
+      touchPinchStartZoom = $zoomStore;
+    }
+  }
+
+  function handleTouchMove(e) {
+    if (e.touches.length >= 2 && touchPinchStartDist > 0) {
+      e.preventDefault();
+      isAutoFitStore.set(false);
+      
+      const dist = getPinchDist(e);
+      const scale = dist / touchPinchStartDist;
+      const newZoom = Math.min(Math.max(touchPinchStartZoom * scale, 0.05), 5.0);
+      zoomStore.set(newZoom);
+    }
+  }
+
+  function handleTouchEnd(e) {
+    if (e.touches.length < 2) {
+      touchPinchStartDist = 0;
     }
   }
 
@@ -81,6 +141,9 @@
     class="preview-viewport" 
     bind:this={viewport}
     on:wheel|nonpassive={handleWheel}
+    on:touchstart|nonpassive={handleTouchStart}
+    on:touchmove|nonpassive={handleTouchMove}
+    on:touchend={handleTouchEnd}
   >
     <div 
       class="preview-scroller" 
