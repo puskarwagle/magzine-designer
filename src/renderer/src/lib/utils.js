@@ -2,8 +2,7 @@ export const albumSizePresets = [
   { id: '18x12', name: '18 x 12 in (Spread)', unit: 'in', spreadWidth: 18, height: 12 },
   { id: '10x10', name: '10 x 10 in (Spread)', unit: 'in', spreadWidth: 20, height: 10 },
   { id: '8x8', name: '8 x 8 in (Spread)', unit: 'in', spreadWidth: 16, height: 8 },
-  { id: 'a4', name: 'A4 (29.7 x 21 cm) (Spread)', unit: 'cm', spreadWidth: 59.4, height: 21 },
-  { id: 'custom', name: 'Custom Size', unit: 'in', spreadWidth: 18, height: 12 }
+  { id: 'a4', name: 'A4 (29.7 x 21 cm) (Spread)', unit: 'cm', spreadWidth: 59.4, height: 21 }
 ];
 
 export const DEFAULT_DPI = 300;

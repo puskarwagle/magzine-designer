@@ -4,7 +4,7 @@ import { DEFAULT_DPI, PAPER_THICKNESS_MM } from '../lib/utils.js';
 export const albumSettingsStore = writable({
   unit: 'in',
   dpi: DEFAULT_DPI,
-  pageWidth: 18,
+  pageWidth: 9,
   pageHeight: 12,
   presetId: '18x12',
   bindingType: 'lay-flat', // 'lay-flat' or 'standard'

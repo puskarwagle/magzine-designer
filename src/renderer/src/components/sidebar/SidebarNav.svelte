@@ -2,9 +2,9 @@
   import { currentMenuStore, uiSettingsStore } from '../../stores/ui.js';
 
   const menuItems = [
-    { id: 'folder', label: 'Images', icon: '📁' },
-    { id: 'layout', label: 'Layouts', icon: '🎨' },
     { id: 'size', label: 'Size', icon: '📏' },
+    { id: 'layout', label: 'Layouts', icon: '🎨' },
+    { id: 'folder', label: 'Images', icon: '📁' },
     { id: 'export', label: 'Export', icon: '📤' },
     { id: 'backgrounds', label: 'Backgrounds', icon: '🖼️' },
     { id: 'themes', label: 'Themes', icon: '🎭' },

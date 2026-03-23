@@ -66,6 +66,9 @@
       {#each albumSizePresets as preset}
         <option value={preset.id}>{preset.name}</option>
       {/each}
+      {#if settings.presetId === 'custom'}
+        <option value="custom">Custom</option>
+      {/if}
     </select>
   </div>
 
