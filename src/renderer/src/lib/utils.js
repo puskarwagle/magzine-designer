@@ -1,9 +1,9 @@
 export const albumSizePresets = [
-  { id: '18x12', name: '18 x 12 in', unit: 'in', width: 18, height: 12 },
-  { id: '10x10', name: '10 x 10 in', unit: 'in', width: 10, height: 10 },
-  { id: '8x8', name: '8 x 8 in', unit: 'in', width: 8, height: 8 },
-  { id: 'a4', name: 'A4 Landscape (29.7 x 21 cm)', unit: 'cm', width: 29.7, height: 21 },
-  { id: 'custom', name: 'Custom Size', unit: 'in', width: 18, height: 12 }
+  { id: '18x12', name: '18 x 12 in (Spread)', unit: 'in', spreadWidth: 18, height: 12 },
+  { id: '10x10', name: '10 x 10 in (Spread)', unit: 'in', spreadWidth: 20, height: 10 },
+  { id: '8x8', name: '8 x 8 in (Spread)', unit: 'in', spreadWidth: 16, height: 8 },
+  { id: 'a4', name: 'A4 (29.7 x 21 cm) (Spread)', unit: 'cm', spreadWidth: 59.4, height: 21 },
+  { id: 'custom', name: 'Custom Size', unit: 'in', spreadWidth: 18, height: 12 }
 ];
 
 export const DEFAULT_DPI = 300;

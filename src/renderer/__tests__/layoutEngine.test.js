@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import presetsData from '../../../presets.json';
 
 // LayoutEngine is now a standard ESM export.
 import { LayoutEngine } from '../src/lib/layoutEngine.js';
@@ -6,6 +7,11 @@ import { LayoutEngine } from '../src/lib/layoutEngine.js';
 const LE = () => LayoutEngine;
 
 describe('LayoutEngine - preset validation & registry', () => {
+  beforeEach(() => {
+    // Ensure presets are loaded for tests that check the registry
+    LE().loadPresetsFromData(presetsData);
+  });
+
   it('detects mismatched slot count vs imageCount', () => {
     const badPreset = {
       id: 'BAD-1',

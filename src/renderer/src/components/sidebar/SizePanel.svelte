@@ -13,7 +13,7 @@
         ...s,
         presetId: preset.id,
         unit: preset.unit,
-        pageWidth: preset.width,
+        pageWidth: (preset.spreadWidth || preset.width) / 2,
         pageHeight: preset.height
       }));
     }
@@ -78,7 +78,7 @@
   </div>
 
   <div class="form-row">
-    <label for="width">Page Width</label>
+    <label for="width">Page Width (Single Page)</label>
     <input 
       type="number" 
       id="width" 

@@ -70,6 +70,8 @@ export const activeSpreadLayout = derived(
       pageHeightPx: 500,
       spreadHeightPx: 500,
       margins: { top: 0, bottom: 0, inner: 0, outer: 0 },
+      leftPageMarginBox: { left: 0, top: 0, width: 0, height: 0 },
+      rightPageMarginBox: { left: 0, top: 0, width: 0, height: 0 },
       slots: [],
       leftPageSlots: [],
       rightPageSlots: [],
@@ -114,6 +116,25 @@ export const activeSpreadLayout = derived(
       const totalSpreadWidthPx = (pageWidthPx * 2) + spineWidthPx;
       const spreadHeightPx = pageHeightPx;
 
+      // Simplistic calculation to test if LayoutEngine call is the issue
+      const outerPx = toPixels(margins.outer, unit, dpi);
+      const topPx = toPixels(margins.top, unit, dpi);
+      const innerPx = toPixels(margins.inner, unit, dpi);
+      const bottomPx = toPixels(margins.bottom, unit, dpi);
+
+      const leftPageMarginBox = {
+        left: outerPx,
+        top: topPx,
+        width: pageWidthPx - outerPx - innerPx,
+        height: pageHeightPx - topPx - bottomPx
+      };
+      const rightPageMarginBox = {
+        left: innerPx,
+        top: topPx,
+        width: pageWidthPx - outerPx - innerPx,
+        height: pageHeightPx - topPx - bottomPx
+      };
+
       layoutData = {
         ...layoutData,
         isCover,
@@ -123,7 +144,9 @@ export const activeSpreadLayout = derived(
         pageWidthPx,
         pageHeightPx,
         spreadHeightPx,
-        margins
+        margins,
+        leftPageMarginBox,
+        rightPageMarginBox
       };
 
       if ($layoutMode === 'spread' || (isCover && $settings.includeCover)) {

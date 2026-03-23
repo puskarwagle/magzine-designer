@@ -4,7 +4,6 @@
   import { albumSettingsStore } from '../../stores/settings.js';
   import { zoomStore, isAutoFitStore, autoFitScaleStore } from '../../stores/ui.js';
   import { toPixels } from '../../lib/utils.js';
-  import Ruler from '../rulers/Ruler.svelte';
   import PreviewControls from './PreviewControls.svelte';
   import KonvaStage from './KonvaStage.svelte';
 
@@ -12,8 +11,8 @@
   $: layout = $activeSpreadLayout;
   $: settings = $albumSettingsStore;
 
-  $: spreadWidthPx = layout.totalSpreadWidthPx;
-  $: spreadHeightPx = layout.spreadHeightPx;
+  $: spreadWidthPx = layout.totalSpreadWidthPx || 1000;
+  $: spreadHeightPx = layout.spreadHeightPx || 500;
   
   let viewport;
   const PADDING = 60;
@@ -88,7 +87,7 @@
         class="preview-shell"
         style="width: {spreadWidthPx * currentZoom}px; height: {spreadHeightPx * currentZoom}px;"
       >
-        <div class="canvas-wrapper" style="background: rgba(255,0,0,0.1); border: 2px solid red;">
+        <div class="canvas-wrapper" style="border: 4px solid yellow; background: rgba(255, 255, 0, 0.1);">
           {#if layout.error}
             <div class="status-overlay error">
               <span class="status-icon">⚠️</span>
@@ -100,12 +99,6 @@
               <p>Preparing layout...</p>
             </div>
           {:else}
-            <!-- Debug Label -->
-            <div style="position: absolute; top: 10px; left: 10px; color: yellow; z-index: 100; font-family: monospace; font-size: 12px; background: rgba(0,0,0,0.8); padding: 4px; pointer-events: none;">
-              Layout: {layout.layoutMode}<br>
-              Size: {Math.round(spreadWidthPx)}x{Math.round(spreadHeightPx)}<br>
-              Zoom: {Math.round(currentZoom * 100)}%
-            </div>
             <KonvaStage />
           {/if}
         </div>
@@ -164,6 +157,7 @@
   .preview-shell {
     position: relative;
     flex: 0 0 auto;
+    background: #1e293b;
     transition: width 0.1s ease-out, height 0.1s ease-out;
   }
 
