@@ -6,6 +6,7 @@
   import { toPixels } from '../../lib/utils.js';
   import PreviewControls from './PreviewControls.svelte';
   import KonvaStage from './KonvaStage.svelte';
+  import Ruler from '../rulers/Ruler.svelte';
 
   $: currentSpreadIndex = $currentSpreadIndexStore;
   $: layout = $activeSpreadLayout;
@@ -13,6 +14,8 @@
 
   $: spreadWidthPx = layout.totalSpreadWidthPx || 1000;
   $: spreadHeightPx = layout.spreadHeightPx || 500;
+  $: pageWidthPx = layout.pageWidthPx || 500;
+  $: spineWidthPx = layout.spineWidthPx || 0;
   
   let viewport;
   const PADDING = 60;
@@ -87,7 +90,45 @@
         class="preview-shell"
         style="width: {spreadWidthPx * currentZoom}px; height: {spreadHeightPx * currentZoom}px;"
       >
-        <div class="canvas-wrapper" style="border: 4px solid yellow; background: rgba(255, 255, 0, 0.1);">
+        <!-- CSS Physical Pages Layer (Bottom) -->
+        <div class="css-spread-layer" style="transform: scale({currentZoom}); transform-origin: top left; --inv-zoom: {1 / currentZoom};">
+          <!-- Left Page -->
+          <div 
+            class="css-page" 
+            style="left: 0; width: {pageWidthPx}px; height: {spreadHeightPx}px;"
+          >
+             <!-- Left Safe Zone -->
+             {#if layout.leftPageMarginBox}
+               <div class="css-safe-zone" style="left: {layout.leftPageMarginBox.left}px; top: {layout.leftPageMarginBox.top}px; width: {layout.leftPageMarginBox.width}px; height: {layout.leftPageMarginBox.height}px;"></div>
+             {/if}
+          </div>
+          
+          <!-- Spine -->
+          {#if spineWidthPx > 0}
+            <div 
+              class="css-spine" 
+              style="left: {pageWidthPx}px; width: {spineWidthPx}px; height: {spreadHeightPx}px;"
+            >
+              <div class="css-spine-line"></div>
+            </div>
+          {/if}
+
+          <!-- Right Page -->
+          <div 
+            class="css-page" 
+            style="left: {pageWidthPx + spineWidthPx}px; width: {pageWidthPx}px; height: {spreadHeightPx}px;"
+          >
+             <!-- Right Safe Zone -->
+             {#if layout.rightPageMarginBox}
+               <div class="css-safe-zone" style="left: {layout.rightPageMarginBox.left}px; top: {layout.rightPageMarginBox.top}px; width: {layout.rightPageMarginBox.width}px; height: {layout.rightPageMarginBox.height}px;"></div>
+             {/if}
+          </div>
+        </div>
+
+        <Ruler orientation="horizontal" lengthPx={spreadWidthPx} unit={settings.unit} dpi={settings.dpi} zoom={currentZoom} />
+        <Ruler orientation="vertical" lengthPx={spreadHeightPx} unit={settings.unit} dpi={settings.dpi} zoom={currentZoom} />
+
+        <div class="canvas-wrapper">
           {#if layout.error}
             <div class="status-overlay error">
               <span class="status-icon">⚠️</span>
@@ -99,6 +140,7 @@
               <p>Preparing layout...</p>
             </div>
           {:else}
+            <!-- Konva Layer (Top) -->
             <KonvaStage />
           {/if}
         </div>
@@ -157,14 +199,61 @@
   .preview-shell {
     position: relative;
     flex: 0 0 auto;
-    background: #1e293b;
     transition: width 0.1s ease-out, height 0.1s ease-out;
   }
 
+  /* CSS LAYER STYLES */
+  .css-spread-layer {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none; /* Let clicks pass through to Konva */
+    z-index: 1;
+  }
+
+  .css-page {
+    position: absolute;
+    top: 0;
+    background: #ffffff;
+    border: calc(1px * var(--inv-zoom)) solid #e2e8f0;
+    box-shadow: 0 calc(10px * var(--inv-zoom)) calc(30px * var(--inv-zoom)) rgba(0, 0, 0, 0.2);
+  }
+
+  .css-safe-zone {
+    position: absolute;
+    border: calc(1px * var(--inv-zoom)) dashed rgba(239, 68, 68, 0.6);
+    pointer-events: none;
+  }
+
+  .css-spine {
+    position: absolute;
+    top: 0;
+    background: linear-gradient(to right, 
+      rgba(0,0,0,0.05) 0%, 
+      rgba(0,0,0,0.15) 45%, 
+      rgba(0,0,0,0.25) 50%, 
+      rgba(0,0,0,0.15) 55%, 
+      rgba(0,0,0,0.05) 100%
+    );
+  }
+
+  .css-spine-line {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: calc(1px * var(--inv-zoom));
+    background: rgba(0,0,0,0.15);
+    transform: translateX(-50%);
+  }
+
+  /* KONVA LAYER STYLES */
   .canvas-wrapper {
     position: absolute;
     inset: 0;
     overflow: hidden;
+    z-index: 2; /* Konva sits on top of CSS pages */
   }
 
   .status-overlay {
@@ -216,6 +305,7 @@
     backdrop-filter: blur(8px);
     border-top: 1px solid #1e293b;
     width: 100%;
+    z-index: 10;
   }
 
   .preview-spread-label {

@@ -97,10 +97,15 @@ export const activeSpreadLayout = derived(
       }
 
       // Ensure settings have valid dimensions to avoid NaN
-      const pageWidth = $settings.pageWidth || 12;
-      const pageHeight = $settings.pageHeight || 12;
+      const safeNum = (v, defaultVal = 0) => {
+        const num = Number(v);
+        return isNaN(num) ? defaultVal : num;
+      };
+
+      const pageWidth = safeNum($settings.pageWidth, 12);
+      const pageHeight = safeNum($settings.pageHeight, 12);
       const unit = $settings.unit || 'in';
-      const dpi = $settings.dpi || 300;
+      const dpi = safeNum($settings.dpi, 300);
 
       const isCover = $settings.includeCover && $currentIndex === 0;
       const margins = spread.useCustomMargins ? (spread.margins || $settings.globalMargins) : $settings.globalMargins;
@@ -109,18 +114,18 @@ export const activeSpreadLayout = derived(
       const spineWidthPx = isCover ? 0 : 10;
 
       // Page-level dimensions
-      const pageWidthPx = toPixels(pageWidth, unit, dpi);
-      const pageHeightPx = toPixels(pageHeight, unit, dpi);
+      const pageWidthPx = safeNum(toPixels(pageWidth, unit, dpi), 500);
+      const pageHeightPx = safeNum(toPixels(pageHeight, unit, dpi), 500);
 
       // Spread-level dimensions (2 pages + spine)
-      const totalSpreadWidthPx = (pageWidthPx * 2) + spineWidthPx;
+      const totalSpreadWidthPx = safeNum((pageWidthPx * 2) + spineWidthPx, 1010);
       const spreadHeightPx = pageHeightPx;
 
       // Simplistic calculation to test if LayoutEngine call is the issue
-      const outerPx = toPixels(margins.outer, unit, dpi);
-      const topPx = toPixels(margins.top, unit, dpi);
-      const innerPx = toPixels(margins.inner, unit, dpi);
-      const bottomPx = toPixels(margins.bottom, unit, dpi);
+      const outerPx = safeNum(toPixels(margins.outer, unit, dpi));
+      const topPx = safeNum(toPixels(margins.top, unit, dpi));
+      const innerPx = safeNum(toPixels(margins.inner, unit, dpi));
+      const bottomPx = safeNum(toPixels(margins.bottom, unit, dpi));
 
       const leftPageMarginBox = {
         left: outerPx,
