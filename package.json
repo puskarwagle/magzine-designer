@@ -1,0 +1,47 @@
+{
+  "name": "album-layout-electron-demo",
+  "version": "0.1.0",
+  "description": "Minimal Electron demo app for album layout preview using plain HTML/CSS/JS.",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "concurrently \"vite src/renderer\" \"wait-on http://localhost:5173 && cross-env NODE_ENV=development electron .\"",
+    "build:vite": "vite build src/renderer",
+    "build": "npm run build:vite && electron-builder",
+    "test": "vitest",
+    "test:watch": "vitest --watch"
+  },
+  "build": {
+    "appId": "com.example.albumlayoutdemo",
+    "productName": "Album Layout Demo",
+    "files": [
+      "src/**/*",
+      "package.json",
+      "presets.json"
+    ],
+    "directories": {
+      "buildResources": "build"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    }
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^7.0.0",
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
+    "electron": "^30.0.0",
+    "electron-builder": "^25.0.0",
+    "jsdom": "^29.0.0",
+    "svelte": "^5.55.0",
+    "vite": "^8.0.2",
+    "vitest": "^4.1.0",
+    "wait-on": "^9.0.4"
+  },
+  "dependencies": {
+    "konva": "^10.2.3",
+    "svelte-konva": "^1.0.1"
+  }
+}
