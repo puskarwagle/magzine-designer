@@ -9,8 +9,7 @@ export const projectStore = writable({
     { id: '3', path: 'https://picsum.photos/800/800?3', width: 800, height: 800 },
     { id: '4', path: 'https://picsum.photos/1200/800?4', width: 1200, height: 800 },
     { id: '5', path: 'https://picsum.photos/800/1200?5', width: 800, height: 1200 },
-  ],
-  spreadsCount: 10
+  ]
 });
 
 export const presetsStore = writable([]);
