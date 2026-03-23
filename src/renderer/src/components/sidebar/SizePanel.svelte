@@ -117,8 +117,5 @@
     <input type="number" id="margin-outer" value={settings.globalMargins.outer} step="0.1" on:input={(e) => handleMarginChange('outer', e.target.value)} />
   </div>
 
-  <div class="form-row checkbox" style="margin-top: 1rem;">
-    <input type="checkbox" id="include-cover" checked={settings.includeCover} on:change={(e) => albumSettingsStore.update(s => ({ ...s, includeCover: e.target.checked }))} />
-    <label for="include-cover">Include Cover Spread</label>
-  </div>
+
 </SidebarPanel>

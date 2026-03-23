@@ -16,6 +16,13 @@
   $: spreadHeightPx = layout.spreadHeightPx || 500;
   $: pageWidthPx = layout.pageWidthPx || 500;
   $: spineWidthPx = layout.spineWidthPx || 0;
+
+  $: horizontalRulerLengthPx = (layout.layoutMode === 'single') ? layout.pageWidthPx : spreadWidthPx;
+  $: horizontalRulerOffsetX = (layout.layoutMode === 'single') ? (spreadWidthPx - layout.pageWidthPx) / 2 : 0;
+
+  // Vertical ruler will always span the full height
+  $: verticalRulerLengthPx = spreadHeightPx;
+  $: verticalRulerOffsetX = 0; // Vertical ruler doesn't need horizontal offset
   
   let viewport;
   const PADDING = 60;
@@ -145,51 +152,67 @@
     on:touchmove|nonpassive={handleTouchMove}
     on:touchend={handleTouchEnd}
   >
-    <div 
-      class="preview-scroller" 
+    <div
+      class="preview-scroller"
       class:is-autofit={isAutoFit}
     >
-      <div 
+      <div
         class="preview-shell"
         style="width: {spreadWidthPx * currentZoom}px; height: {spreadHeightPx * currentZoom}px;"
       >
         <!-- CSS Physical Pages Layer (Bottom) -->
         <div class="css-spread-layer" style="transform: scale({currentZoom}); transform-origin: top left; --inv-zoom: {1 / currentZoom};">
-          <!-- Left Page -->
-          <div 
-            class="css-page" 
-            style="left: 0; width: {pageWidthPx}px; height: {spreadHeightPx}px;"
-          >
-             <!-- Left Safe Zone -->
-             {#if layout.leftPageMarginBox}
-               <div class="css-safe-zone" style="left: {layout.leftPageMarginBox.left}px; top: {layout.leftPageMarginBox.top}px; width: {layout.leftPageMarginBox.width}px; height: {layout.leftPageMarginBox.height}px;"></div>
-             {/if}
-          </div>
-          
-          <!-- Spine -->
-          {#if spineWidthPx > 0}
-            <div 
-              class="css-spine" 
-              style="left: {pageWidthPx}px; width: {spineWidthPx}px; height: {spreadHeightPx}px;"
+          {#if layout.layoutMode === 'single' && !layout.isCover}
+            <!-- Single Page View -->
+            <div
+              class="css-page"
+              style="left: {(layout.totalSpreadWidthPx - layout.pageWidthPx) / 2}px; width: {pageWidthPx}px; height: {spreadHeightPx}px;"
             >
-              <div class="css-spine-line"></div>
+               <!-- Safe Zone -->
+               {#if layout.activePage === 'left' && layout.leftPageMarginBox}
+                 <div class="css-safe-zone" style="left: {layout.leftPageMarginBox.left}px; top: {layout.leftPageMarginBox.top}px; width: {layout.leftPageMarginBox.width}px; height: {layout.leftPageMarginBox.height}px;"></div>
+               {:else if layout.activePage === 'right' && layout.rightPageMarginBox}
+                 <div class="css-safe-zone" style="left: {layout.rightPageMarginBox.left}px; top: {layout.rightPageMarginBox.top}px; width: {layout.rightPageMarginBox.width}px; height: {layout.rightPageMarginBox.height}px;"></div>
+               {/if}
+            </div>
+          {:else}
+            <!-- Spread View -->
+            <!-- Left Page -->
+            <div
+              class="css-page"
+              style="left: 0; width: {pageWidthPx}px; height: {spreadHeightPx}px;"
+            >
+               <!-- Left Safe Zone -->
+               {#if layout.leftPageMarginBox}
+                 <div class="css-safe-zone" style="left: {layout.leftPageMarginBox.left}px; top: {layout.leftPageMarginBox.top}px; width: {layout.leftPageMarginBox.width}px; height: {layout.leftPageMarginBox.height}px;"></div>
+               {/if}
+            </div>
+
+            <!-- Spine -->
+            {#if spineWidthPx > 0}
+              <div
+                class="css-spine"
+                style="left: {pageWidthPx}px; width: {spineWidthPx}px; height: {spreadHeightPx}px;"
+              >
+                <div class="css-spine-line"></div>
+              </div>
+            {/if}
+
+            <!-- Right Page -->
+            <div
+              class="css-page"
+              style="left: {pageWidthPx + spineWidthPx}px; width: {pageWidthPx}px; height: {spreadHeightPx}px;"
+            >
+               <!-- Right Safe Zone -->
+               {#if layout.rightPageMarginBox}
+                 <div class="css-safe-zone" style="left: {layout.rightPageMarginBox.left}px; top: {layout.rightPageMarginBox.top}px; width: {layout.rightPageMarginBox.width}px; height: {layout.rightPageMarginBox.height}px;"></div>
+               {/if}
             </div>
           {/if}
-
-          <!-- Right Page -->
-          <div 
-            class="css-page" 
-            style="left: {pageWidthPx + spineWidthPx}px; width: {pageWidthPx}px; height: {spreadHeightPx}px;"
-          >
-             <!-- Right Safe Zone -->
-             {#if layout.rightPageMarginBox}
-               <div class="css-safe-zone" style="left: {layout.rightPageMarginBox.left}px; top: {layout.rightPageMarginBox.top}px; width: {layout.rightPageMarginBox.width}px; height: {layout.rightPageMarginBox.height}px;"></div>
-             {/if}
-          </div>
         </div>
 
-        <Ruler orientation="horizontal" lengthPx={spreadWidthPx} unit={settings.unit} dpi={settings.dpi} zoom={currentZoom} />
-        <Ruler orientation="vertical" lengthPx={spreadHeightPx} unit={settings.unit} dpi={settings.dpi} zoom={currentZoom} />
+        <Ruler orientation="horizontal" lengthPx={horizontalRulerLengthPx} offsetX={horizontalRulerOffsetX} unit={settings.unit} dpi={settings.dpi} zoom={currentZoom} />
+        <Ruler orientation="vertical" lengthPx={verticalRulerLengthPx} offsetX={verticalRulerOffsetX} unit={settings.unit} dpi={settings.dpi} zoom={currentZoom} />
 
         <div class="canvas-wrapper">
           {#if layout.error}

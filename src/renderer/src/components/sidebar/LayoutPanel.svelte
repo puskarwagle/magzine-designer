@@ -1,6 +1,7 @@
 <script>
   import SidebarPanel from './SidebarPanel.svelte';
   import { spreadsStore, currentSpreadIndexStore, activePageStore, layoutModeStore } from '../../stores/spreads.js';
+  import { projectStore } from '../../stores/project.js';
   import { LayoutEngine } from '../../lib/layoutEngine.js';
 
   $: currentSpreadIndex = $currentSpreadIndexStore;
@@ -75,19 +76,32 @@
   <div class="form-row">
     <span class="label">Layout Mode</span>
     <div style="display: flex; gap: 0.5rem;">
-      <button 
-        class="button {layoutMode === 'single' ? '' : 'secondary'}" 
+      <button
+        class="button {layoutMode === 'single' ? '' : 'secondary'}"
         style="flex: 1;"
         on:click={() => layoutModeStore.set('single')}
       >Single Page</button>
-      <button 
-        class="button {layoutMode === 'spread' ? '' : 'secondary'}" 
+      <button
+        class="button {layoutMode === 'spread' ? '' : 'secondary'}"
         style="flex: 1;"
         on:click={() => layoutModeStore.set('spread')}
       >Cross Spread</button>
     </div>
   </div>
 
+  <!-- New Spreads Count Selector -->
+  <div class="form-row">
+    <span class="label">Spreads Count</span>
+    <select
+      class="input"
+      value={$projectStore.spreadsCount}
+      on:change={(e) => projectStore.update(p => ({...p, spreadsCount: parseInt(e.target.value, 10)}))}
+    >
+      {#each Array(50).fill(0) as _, i}
+        <option value={i + 1}>{i + 1}</option>
+      {/each}
+    </select>
+  </div>
   {#if layoutMode === 'single'}
     <div class="form-row">
       <span class="label">Active Page</span>

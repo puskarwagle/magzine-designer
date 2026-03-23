@@ -34,6 +34,45 @@ The "backend" of the app. It handles:
 - Filesystem operations via IPC handlers.
 - **`presets.json`**: External source of truth for layout configurations.
 
+#### Inter-Process Communication (IPC)
+IPC is handled via a preload script, exposing a secure API to the renderer process.
+
+**`src/main/ipcHandlers.js`**
+This file defines the backend logic for IPC calls.
+```javascript
+// src/main/ipcHandlers.js
+
+import { ipcMain, dialog } from 'electron';
+import fs from 'fs-extra';
+import path from 'path';
+// ... other imports
+
+export function registerIpcHandlers() {
+  ipcMain.handle('get-images-in-folder', async (event, folderPath) => {
+    // ... logic to get images
+  });
+
+  ipcMain.handle('get-presets', async () => {
+    const presetsPath = path.join(app.getAppPath(), 'presets.json');
+    const presets = await fs.readJson(presetsPath);
+    return presets;
+  });
+}
+```
+
+**`src/preload/preload.js`**
+The preload script securely exposes the IPC functionality to the renderer.
+```javascript
+// src/preload/preload.js
+import { contextBridge, ipcRenderer } from 'electron';
+
+contextBridge.exposeInMainWorld('api', {
+  getImagesInFolder: (folderPath) => ipcRenderer.invoke('get-images-in-folder', folderPath),
+  getPresets: () => ipcRenderer.invoke('get-presets'),
+});
+```
+
+
 ### 2. Preload Bridge (`src/preload/`)
 - **`preload.js`**: A secure bridge that exposes a limited `window.api` to the frontend.
 
@@ -44,6 +83,28 @@ The modern Svelte frontend, located in `src/renderer/src/`.
 The app's rendering architecture is designed for high performance and clear separation of concerns, centered around a powerful derived store.
 
 1.  **`activeSpreadLayout` (The Brain):** This is a centralized Svelte derived store located in `src/renderer/src/stores/spreads.js`. It is the **single source of truth for all rendering coordinates**. It listens to multiple other stores (project settings, UI state, spread data) and, whenever any of them change, it re-runs all calculations by passing the raw data to the stateless `layoutEngine.js`. The final output is a complete, pixel-perfect description of the entire spread, including page dimensions, margins, and an array of image slots with their exact coordinates and sizes.
+
+    **`src/renderer/src/stores/spreads.js`**
+    ```javascript
+    // src/renderer/src/stores/spreads.js
+    import { derived } from 'svelte/store';
+    import { project } from './project.js';
+    import { ui } from './ui.js';
+    import { layoutEngine } from '../lib/layoutEngine.js';
+
+    export const activeSpreadLayout = derived(
+      [project, ui],
+      ([$project, $ui]) => {
+        if (!$project.activeSpread) return null;
+
+        const layoutInput = {
+          // ... map state from $project and $ui to layoutEngine input
+        };
+
+        return layoutEngine.calculateLayout(layoutInput);
+      }
+    );
+    ```
 
 2.  **`Konva.js` (The "Muscle"):** The UI follows a "Dumb Component" pattern. The preview area uses `svelte-konva` to render the album spread on an HTML5 Canvas.
     - **`KonvaStage.svelte`**: This component receives the fully-calculated layout object from the `activeSpreadLayout` store.
@@ -73,6 +134,30 @@ The application uses an externalized normalization system:
 3. **Priorities**: Each slot has a priority used for automatic image mapping.
 4. **Generic Fallback**: If no matching preset is found for an image count, the engine dynamically generates a grid.
 
+**`presets.json`**
+This file contains an array of layout presets. Each preset defines the number of images it's for and the layout of slots.
+```json
+[
+  {
+    "name": "2-up Landscape",
+    "imageCount": 2,
+    "slots": [
+      { "x": 0, "y": 0, "width": 0.48, "height": 1, "priority": 1 },
+      { "x": 0.52, "y": 0, "width": 0.48, "height": 1, "priority": 2 }
+    ]
+  },
+  {
+    "name": "3-up Portrait",
+    "imageCount": 3,
+    "slots": [
+        { "x": 0, "y": 0, "width": 0.32, "height": 1, "priority": 1 },
+        { "x": 0.34, "y": 0, "width": 0.32, "height": 1, "priority": 2 },
+        { "x": 0.68, "y": 0, "width": 0.32, "height": 1, "priority": 3 }
+    ]
+  }
+]
+```
+
 ## Physical-to-Pixel Conversion
 
 Accuracy is critical for print-ready albums.
@@ -83,6 +168,28 @@ Accuracy is critical for print-ready albums.
     - **Auto-Fit**: Automatically scales the canvas to fit the viewport while accounting for 24px rulers and workspace padding.
     - **Pinch-to-Zoom**: Intuitive trackpad and wheel gestures for inspection.
     - **Smart Centering**: Automatically switches from flex-centering to top-left scrolling when the canvas exceeds the viewport size.
+
+The conversion logic is centralized in `utils.js`.
+
+**`src/renderer/src/lib/utils.js`**
+```javascript
+// src/renderer/src/lib/utils.js
+
+export const CM_TO_IN = 1 / 2.54;
+
+export function toPixels(value, unit, dpi) {
+  if (unit === 'in') {
+    return value * dpi;
+  }
+  if (unit === 'cm') {
+    return value * CM_TO_IN * dpi;
+  }
+  if (unit === 'px') {
+    return value;
+  }
+  return 0;
+}
+```
 
 ## Developer Commands
 

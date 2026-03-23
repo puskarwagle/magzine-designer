@@ -1,19 +1,26 @@
-import { writable, derived } from 'svelte/store';
+import { writable, derived, get } from 'svelte/store';
 import { albumSettingsStore } from './settings.js';
 import { projectStore } from './project.js';
 import { LayoutEngine } from '../lib/layoutEngine.js';
 import { toPixels } from '../lib/utils.js';
 
-export const spreadsStore = writable([
-  {
-    id: 1,
-    leftPage: { imageIds: ['1', '2'], currentPresetIndex: 0 },
-    rightPage: { imageIds: ['3'], currentPresetIndex: 0 },
-    spreadPage: { imageIds: ['1', '2', '3'], currentPresetIndex: 0 },
+function createDefaultSpread(type = 'spread') {
+  return {
+    id: Date.now() + Math.random(),
+    type: type, // 'single' or 'spread'
+    leftPage: { imageIds: [], currentPresetIndex: 0 },
+    rightPage: { imageIds: [], currentPresetIndex: 0 },
+    spreadPage: { imageIds: [], currentPresetIndex: 0 },
     useCustomMargins: false,
     margins: { top: 0.5, bottom: 0.5, inner: 0.5, outer: 0.5 }
-  }
-]);
+  };
+}
+
+// The core store holding all active spreads/pages in the album
+export const spreadsStore = writable([createDefaultSpread('spread')]);
+
+// Store for removed but preserved spreads (soft delete)
+export const archivedSpreadsStore = writable([]);
 
 export const currentSpreadIndexStore = writable(0);
 export const activePageStore = writable('left'); // 'left' or 'right'
@@ -22,15 +29,74 @@ export const layoutModeStore = writable('spread'); // 'single' (per-page) or 'sp
 export const lockedSlotsStore = writable(new Map());
 
 /**
+ * Checks if a spread has any images placed on it.
+ */
+export function isSpreadPopulated(spread) {
+  if (!spread) return false;
+  return (
+    spread.leftPage.imageIds.length > 0 ||
+    spread.rightPage.imageIds.length > 0 ||
+    spread.spreadPage.imageIds.length > 0
+  );
+}
+
+/**
+ * Adds a new spread or single page to the album.
+ */
+export function addSpread(type = 'spread') {
+  spreadsStore.update(s => [...s, createDefaultSpread(type)]);
+  const currentSpreads = get(spreadsStore);
+  currentSpreadIndexStore.set(currentSpreads.length - 1);
+}
+
+/**
+ * Moves a spread to the archive (soft delete).
+ */
+export function removeSpread(index) {
+  const spreads = get(spreadsStore);
+  const spreadToRemove = spreads[index];
+  if (!spreadToRemove) return;
+
+  archivedSpreadsStore.update(a => [...a, spreadToRemove]);
+  
+  spreadsStore.update(s => s.filter((_, i) => i !== index));
+
+  // Adjust index
+  const newCount = spreads.length - 1;
+  if (newCount === 0) {
+    spreadsStore.set([createDefaultSpread()]);
+    currentSpreadIndexStore.set(0);
+  } else {
+    currentSpreadIndexStore.update(i => Math.min(newCount - 1, i));
+  }
+}
+
+/**
+ * Permanently deletes a spread.
+ */
+export function destroySpread(index) {
+  const spreads = get(spreadsStore);
+  if (index < 0 || index >= spreads.length) return;
+
+  spreadsStore.update(s => s.filter((_, i) => i !== index));
+
+  // Adjust index
+  const newCount = spreads.length - 1;
+  if (newCount === 0) {
+    spreadsStore.set([createDefaultSpread()]);
+    currentSpreadIndexStore.set(0);
+  } else {
+    currentSpreadIndexStore.update(i => Math.min(newCount - 1, i));
+  }
+}
+
+/**
  * Updates an image in a specific slot within the current spread.
- * @param {number} spreadIndex - Index of the spread
- * @param {'left'|'right'|'spread'} pageType - Which page/mode to update
- * @param {string} oldImageId - The image ID currently in the slot
- * @param {string} newImageId - The new image ID to place in the slot
  */
 export function updateSlotImage(spreadIndex, pageType, oldImageId, newImageId) {
   spreadsStore.update($spreads => {
-    const spread = { ...$spreads[spreadIndex] };
+    const spreads = [...$spreads];
+    const spread = { ...spreads[spreadIndex] };
     if (!spread) return $spreads;
 
     const updatePage = (pageState) => {
@@ -40,6 +106,9 @@ export function updateSlotImage(spreadIndex, pageType, oldImageId, newImageId) {
         newIds[index] = newImageId;
         return { ...pageState, imageIds: newIds };
       }
+      // If it's a new image being dropped (oldImageId might be null/empty or we are adding to a slot)
+      // For now, let's assume it replaces. If we want to ADD, we need a different logic.
+      // If oldImageId is null, we might be adding to an empty slot.
       return pageState;
     };
 
@@ -47,22 +116,19 @@ export function updateSlotImage(spreadIndex, pageType, oldImageId, newImageId) {
     else if (pageType === 'right') spread.rightPage = updatePage(spread.rightPage);
     else if (pageType === 'spread') spread.spreadPage = updatePage(spread.spreadPage);
 
-    const newSpreads = [...$spreads];
-    newSpreads[spreadIndex] = spread;
-    return newSpreads;
+    spreads[spreadIndex] = spread;
+    return spreads;
   });
 }
 
 /**
- * Derived store that computes the layout data for the currently active spread.
- * This centralizes the calculation logic previously held in Spread.svelte and Page.svelte.
+ * Derived store that computes the layout data for the currently active spread/page.
  */
 export const activeSpreadLayout = derived(
-  [spreadsStore, currentSpreadIndexStore, albumSettingsStore, projectStore, layoutModeStore],
-  ([$spreads, $currentIndex, $settings, $project, $layoutMode]) => {
-    // Initial default layout data to prevent NaN and undefined errors
+  [spreadsStore, currentSpreadIndexStore, albumSettingsStore, projectStore, layoutModeStore, activePageStore],
+  ([$spreads, $currentIndex, $settings, $project, $layoutMode, $activePage]) => {
     let layoutData = {
-      isCover: false,
+      type: 'spread',
       layoutMode: $layoutMode || 'spread',
       spineWidthPx: 10,
       totalSpreadWidthPx: 1000,
@@ -81,12 +147,6 @@ export const activeSpreadLayout = derived(
     };
 
     try {
-      // Guard: Ensure LayoutEngine is ready and stores are valid
-      if (!LayoutEngine || typeof LayoutEngine.applyPresetToSpread !== 'function') {
-        console.warn('activeSpreadLayout: LayoutEngine not ready');
-        return { ...layoutData, loading: true };
-      }
-
       if (!$spreads || $spreads.length === 0) {
         return { ...layoutData, error: true, message: 'No spreads available.' };
       }
@@ -96,7 +156,6 @@ export const activeSpreadLayout = derived(
         return { ...layoutData, error: true, message: `Spread at index ${$currentIndex} does not exist.` };
       }
 
-      // Ensure settings have valid dimensions to avoid NaN
       const safeNum = (v, defaultVal = 0) => {
         const num = Number(v);
         return isNaN(num) ? defaultVal : num;
@@ -107,21 +166,22 @@ export const activeSpreadLayout = derived(
       const unit = $settings.unit || 'in';
       const dpi = safeNum($settings.dpi, 300);
 
-      const isCover = $settings.includeCover && $currentIndex === 0;
       const margins = spread.useCustomMargins ? (spread.margins || $settings.globalMargins) : $settings.globalMargins;
       
-      // Spine width - hardcoded default for now
-      const spineWidthPx = isCover ? 0 : 10;
-
-      // Page-level dimensions
       const pageWidthPx = safeNum(toPixels(pageWidth, unit, dpi), 500);
       const pageHeightPx = safeNum(toPixels(pageHeight, unit, dpi), 500);
-
-      // Spread-level dimensions (2 pages + spine)
-      const totalSpreadWidthPx = safeNum((pageWidthPx * 2) + spineWidthPx, 1010);
       const spreadHeightPx = pageHeightPx;
 
-      // Simplistic calculation to test if LayoutEngine call is the issue
+      // Handle Single Page vs Spread Entry
+      const isEntrySingle = spread.type === 'single';
+      const isModeSingle = $layoutMode === 'single';
+      
+      // If either the entry is single OR the global mode is single, we effectively render a single page
+      const effectivelySingle = isEntrySingle || isModeSingle;
+
+      let spineWidthPx = effectivelySingle ? 0 : 10;
+      let totalSpreadWidthPx = effectivelySingle ? pageWidthPx : (pageWidthPx * 2) + spineWidthPx;
+
       const outerPx = safeNum(toPixels(margins.outer, unit, dpi));
       const topPx = safeNum(toPixels(margins.top, unit, dpi));
       const innerPx = safeNum(toPixels(margins.inner, unit, dpi));
@@ -142,8 +202,9 @@ export const activeSpreadLayout = derived(
 
       layoutData = {
         ...layoutData,
-        isCover,
+        type: spread.type,
         layoutMode: $layoutMode,
+        activePage: effectivelySingle ? 'left' : $activePage, // Force left for single entries
         spineWidthPx,
         totalSpreadWidthPx,
         pageWidthPx,
@@ -154,7 +215,7 @@ export const activeSpreadLayout = derived(
         rightPageMarginBox
       };
 
-      if ($layoutMode === 'spread' || (isCover && $settings.includeCover)) {
+      if ($layoutMode === 'spread' && !isEntrySingle) {
         layoutData.slots = LayoutEngine.applyPresetToSpread({
           spreadState: spread.spreadPage,
           images: $project.images || [],
@@ -165,7 +226,7 @@ export const activeSpreadLayout = derived(
           dpi: dpi
         });
       } else {
-        layoutData.leftPageSlots = LayoutEngine.applyPresetToPage({
+        const leftSlots = LayoutEngine.applyPresetToPage({
           pageState: spread.leftPage,
           images: $project.images || [],
           margins: margins,
@@ -176,7 +237,7 @@ export const activeSpreadLayout = derived(
           isLeftPage: true
         });
 
-        layoutData.rightPageSlots = LayoutEngine.applyPresetToPage({
+        const rightSlots = isEntrySingle ? [] : LayoutEngine.applyPresetToPage({
           pageState: spread.rightPage,
           images: $project.images || [],
           margins: margins,
@@ -186,6 +247,15 @@ export const activeSpreadLayout = derived(
           dpi: dpi,
           isLeftPage: false
         });
+
+        layoutData.leftPageSlots = leftSlots;
+        layoutData.rightPageSlots = rightSlots;
+
+        if (effectivelySingle) {
+          // If the entry is single, we use leftSlots. 
+          // If mode is single, we use activePageSlots.
+          layoutData.slots = (isEntrySingle || $activePage === 'left') ? leftSlots : rightSlots;
+        }
       }
 
       return layoutData;
@@ -195,3 +265,4 @@ export const activeSpreadLayout = derived(
     }
   }
 );
+

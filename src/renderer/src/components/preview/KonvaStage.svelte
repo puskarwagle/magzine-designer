@@ -3,7 +3,9 @@
   import { activeSpreadLayout, spreadsStore, currentSpreadIndexStore, activePageStore, updateSlotImage } from '../../stores/spreads.js';
   import { projectStore } from '../../stores/project.js';
   import { zoomStore } from '../../stores/ui.js';
+  import { albumSettingsStore } from '../../stores/settings.js';
   import KonvaSlot from './KonvaSlot.svelte';
+  import KonvaPage from './KonvaPage.svelte';
 
   $: layout = $activeSpreadLayout;
   $: zoom = $zoomStore;
@@ -38,10 +40,7 @@
 
       if (slotNode && slotNode.name() === 'image-slot') {
         const oldImageId = slotNode.id();
-        let pageType = 'spread';
-        if (layout.layoutMode === 'single' && !layout.isCover) {
-          pageType = pos.x < (layout.pageWidthPx + (layout.spineWidthPx || 0) / 2) ? 'left' : 'right';
-        }
+        let pageType = layout.layoutMode === 'spread' || layout.isCover ? 'spread' : layout.activePage;
         updateSlotImage(spreadIndex, pageType, oldImageId, newImageId);
       }
     }
@@ -67,38 +66,36 @@
       }}
     >
       <Layer>
-        {#if layout.layoutMode === 'single' && !layout.isCover}
-          <!-- Left Page Slots -->
-          {#each layout.leftPageSlots as data (data.imageId)}
-            <KonvaSlot
-              slotRect={data.slotRect}
-              imageRect={data.imageRect}
-              imageData={$projectStore.images.find(img => img.id === data.imageId)}
-              slotInfo={data.slot}
-            />
-          {/each}
-          
-          <!-- Right Page Slots (offset by pageWidth + spine) -->
-          <Group config={{ x: layout.pageWidthPx + (layout.spineWidthPx || 0), y: 0 }}>
-            {#each layout.rightPageSlots as data (data.imageId)}
-              <KonvaSlot
-                slotRect={data.slotRect}
-                imageRect={data.imageRect}
-                imageData={$projectStore.images.find(img => img.id === data.imageId)}
-                slotInfo={data.slot}
-              />
-            {/each}
-          </Group>
-        {:else}
-          <!-- Spread mode Slots -->
-          {#each layout.slots as data (data.imageId)}
-            <KonvaSlot
-              slotRect={data.slotRect}
-              imageRect={data.imageRect}
-              imageData={$projectStore.images.find(img => img.id === data.imageId)}
-              slotInfo={data.slot}
-            />
-          {/each}
+        {#if layout.layoutMode === 'spread' || (layout.isCover && $albumSettingsStore.includeCover)}
+          <!-- Render full spread with two pages -->
+          <KonvaPage
+            x={0}
+            isLeftPage={true}
+            pageWidthPx={layout.pageWidthPx}
+            pageHeightPx={layout.pageHeightPx}
+            slotsData={layout.leftPageSlots}
+            margins={layout.margins}
+          />
+          <KonvaPage
+            x={layout.pageWidthPx + layout.spineWidthPx}
+            isLeftPage={false}
+            pageWidthPx={layout.pageWidthPx}
+            pageHeightPx={layout.pageHeightPx}
+            slotsData={layout.rightPageSlots}
+            margins={layout.margins}
+          />
+        {:else if layout.layoutMode === 'single'}
+          <!-- Render single active page, centered -->
+          {@const activePageIsLeft = layout.activePage === 'left'}
+          {@const singlePageX = (layout.totalSpreadWidthPx - layout.pageWidthPx) / 2}
+          <KonvaPage
+            x={singlePageX}
+            isLeftPage={activePageIsLeft}
+            pageWidthPx={layout.pageWidthPx}
+            pageHeightPx={layout.pageHeightPx}
+            slotsData={activePageIsLeft ? layout.leftPageSlots : layout.rightPageSlots}
+            margins={layout.margins}
+          />
         {/if}
       </Layer>
     </Stage>

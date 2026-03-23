@@ -4,6 +4,7 @@
   export let unit = 'in';
   export let dpi = 300;
   export let zoom = 1.0;
+  export let offsetX = 0;
 
   $: ticks = calculateTicks(lengthPx, unit, dpi, zoom);
 
@@ -37,7 +38,17 @@
   }
 </script>
 
-<div class="ruler ruler-{orientation === 'horizontal' ? 'top' : 'left'}">
+<div
+  class="ruler ruler-{orientation === 'horizontal' ? 'top' : 'left'}"
+  style="
+    position: absolute; /* Ensure absolute positioning */
+    top: ${orientation === 'horizontal' ? '-64px' : `${offsetX}px`}; /* Horizontal ruler: above; Vertical ruler: offset */
+    left: ${orientation === 'horizontal' ? `${offsetX}px` : '-64px'}; /* Horizontal ruler: offset; Vertical ruler: left */
+    width: ${orientation === 'horizontal' ? `${lengthPx * zoom}px` : '40px'}; /* Horizontal: dynamic width; Vertical: fixed width */
+    height: ${orientation === 'vertical' ? `${lengthPx * zoom}px` : '40px'}; /* Vertical: dynamic height; Horizontal: fixed height */
+    background-color: rgba(255, 255, 0, 0.5); /* Semi-transparent yellow for debugging */
+  "
+>
   {#each ticks as tick}
     <div 
       class="tick tick-{tick.type}" 
@@ -55,21 +66,14 @@
     position: absolute;
     background: transparent;
     pointer-events: none;
+    z-index: 100; /* Very high z-index to ensure visibility */
   }
 
   .ruler-top {
-    left: 0;
-    right: 0;
-    top: -24px;
-    height: 20px;
     border-bottom: 1px solid #1e293b;
   }
 
   .ruler-left {
-    top: 0;
-    bottom: 0;
-    left: -24px;
-    width: 20px;
     border-right: 1px solid #1e293b;
   }
 
