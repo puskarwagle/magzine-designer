@@ -9,7 +9,7 @@
     removeSpread,
     destroySpread,
     isSpreadPopulated,
-    shuffleAllImages
+    shuffleCurrentSpread
   } from '../../stores/spreads.js';
   import { projectStore } from '../../stores/project.js';
   import { layoutConfigStore } from '../../stores/ui.js';
@@ -27,39 +27,62 @@
       const spread = spreads[currentSpreadIndex];
       if (!spread) return spreads;
 
-      if (layoutMode === 'spread') {
-        // Next preset for the whole spread pool
-        const presets = LayoutEngine.getSpreadPresetsForCount(spread.imageIds.length);
-        spread.currentPresetIndex = (spread.currentPresetIndex + 1) % presets.length;
-      } else {
-        // Next preset for the active page's subset
-        const pageKey = activePage === 'left' ? 'leftPage' : 'rightPage';
-        const pageImageIds = spread.imageIds.filter(id => spread.pageAssignments[id] === (activePage === 'left' ? 'left' : 'right'));
-        const presets = LayoutEngine.getPresetsForCount(pageImageIds.length);
-        
-        // Ensure the sub-page state has a preset index
-        if (spread[pageKey].currentPresetIndex === undefined) spread[pageKey].currentPresetIndex = 0;
-        spread[pageKey].currentPresetIndex = (spread[pageKey].currentPresetIndex + 1) % presets.length;
-      }
+      // Always cycle the main preset index for the spread
+      // A "spread" is our core data unit, even if we view it page-by-page.
+      const presets = spread.type === 'spread' 
+        ? LayoutEngine.getSpreadPresetsForCount(spread.imageIds.length) 
+        : LayoutEngine.getPresetsForCount(spread.imageIds.length);
+
+      spread.currentPresetIndex = (spread.currentPresetIndex + 1) % presets.length;
       return [...spreads];
     });
   }
 
   function shuffleImages() {
-    shuffleAllImages();
+    shuffleCurrentSpread();
   }
 
-  function prevSpread() {
-    currentSpreadIndexStore.update(i => Math.max(0, i - 1));
+  function nextView() {
+    if (layoutMode === 'single') {
+      if (activePage === 'left' && currentSpread?.type === 'spread') {
+        activePageStore.set('right');
+      } else {
+        if (currentSpreadIndex < $spreadsStore.length - 1) {
+          currentSpreadIndexStore.set(currentSpreadIndex + 1);
+          activePageStore.set('left');
+        }
+      }
+    } else {
+      currentSpreadIndexStore.update(i => Math.min($spreadsStore.length - 1, i + 1));
+    }
   }
 
-  function nextSpread() {
-    currentSpreadIndexStore.update(i => Math.min($spreadsStore.length - 1, i + 1));
+  function prevView() {
+    if (layoutMode === 'single') {
+      if (activePage === 'right') {
+        activePageStore.set('left');
+      } else {
+        if (currentSpreadIndex > 0) {
+          currentSpreadIndexStore.set(currentSpreadIndex - 1);
+          const prevSpread = $spreadsStore[currentSpreadIndex - 1];
+          activePageStore.set(prevSpread.type === 'spread' ? 'right' : 'left');
+        }
+      }
+    } else {
+      currentSpreadIndexStore.update(i => Math.max(0, i - 1));
+    }
   }
+
+  $: totalPages = $spreadsStore.reduce((acc, s) => acc + (s.type === 'spread' ? 2 : 1), 0);
+  $: currentPageNumber = (() => {
+    let count = 0;
+    for (let i = 0; i < currentSpreadIndex; i++) {
+        count += $spreadsStore[i].type === 'spread' ? 2 : 1;
+    }
+    return count + (activePage === 'left' ? 1 : 2);
+  })();
 
   function handleAdd() {
-    // Always add a "page" if in single mode, or a "spread" if in spread mode.
-    // addSpread logic now handles the "2 pages = 1 spread" conversion.
     addSpread(layoutMode === 'single' ? 'single' : 'spread');
   }
 
@@ -88,14 +111,19 @@
   <div class="form-row">
     <span class="label">Navigation</span>
     <div style="display: flex; gap: 0.5rem; align-items: center; justify-content: center;">
-      <button class="button secondary" on:click={prevSpread} disabled={currentSpreadIndex === 0}>←</button>
+      <button class="button secondary" on:click={prevView} disabled={currentSpreadIndex === 0 && (layoutMode === 'spread' || activePage === 'left')}>←</button>
       <div style="flex: 1; text-align: center; display: flex; flex-direction: column; align-items: center;">
         <span style="font-size: 0.8rem; font-weight: 600; color: #94a3b8; text-transform: uppercase;">
-          {currentSpread?.type === 'single' ? 'Page' : 'Spread'}
+          {layoutMode === 'single' ? 'Page' : 'Spread'}
         </span>
-        <span style="font-size: 1.1rem; font-weight: 700;">{currentSpreadIndex + 1}</span>
+        <span style="font-size: 1.1rem; font-weight: 700;">
+          {layoutMode === 'single' ? currentPageNumber : currentSpreadIndex + 1}
+          <span style="color: #64748b; font-weight: 400; font-size: 0.9rem;">
+            / {layoutMode === 'single' ? totalPages : $spreadsStore.length}
+          </span>
+        </span>
       </div>
-      <button class="button secondary" on:click={nextSpread} disabled={currentSpreadIndex === $spreadsStore.length - 1}>→</button>
+      <button class="button secondary" on:click={nextView} disabled={currentSpreadIndex === $spreadsStore.length - 1 && (layoutMode === 'spread' || activePage === 'right' || currentSpread?.type === 'single')}>→</button>
     </div>
   </div>
 
@@ -145,23 +173,6 @@
     </div>
   </div>
 
-  {#if layoutMode === 'single' && currentSpread?.type === 'spread'}
-    <div class="form-row">
-      <span class="label">Active Page</span>
-      <div style="display: flex; gap: 0.5rem;">
-        <button 
-          class="button {activePage === 'left' ? '' : 'secondary'}" 
-          style="flex: 1;"
-          on:click={() => activePageStore.set('left')}
-        >Left Page</button>
-        <button 
-          class="button {activePage === 'right' ? '' : 'secondary'}" 
-          style="flex: 1;"
-          on:click={() => activePageStore.set('right')}
-        >Right Page</button>
-      </div>
-    </div>
-  {/if}
   <div class="panel-header sub">Engine Settings</div>
 
   <div class="form-row">

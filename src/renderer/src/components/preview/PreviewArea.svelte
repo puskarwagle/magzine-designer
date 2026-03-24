@@ -141,6 +141,15 @@
 
   $: currentZoom = $zoomStore;
   $: isAutoFit = $isAutoFitStore;
+
+  $: totalPages = $spreadsStore.reduce((acc, s) => acc + (s.type === 'spread' ? 2 : 1), 0);
+  $: currentPageNumber = (() => {
+    let count = 0;
+    for (let i = 0; i < currentSpreadIndex; i++) {
+        count += $spreadsStore[i].type === 'spread' ? 2 : 1;
+    }
+    return count + ($activeSpreadLayout.activePage === 'left' ? 1 : 2);
+  })();
 </script>
 
 <div class="preview-container">
@@ -151,6 +160,7 @@
     on:touchstart|nonpassive={handleTouchStart}
     on:touchmove|nonpassive={handleTouchMove}
     on:touchend={handleTouchEnd}
+    role="none"
   >
     <div
       class="preview-scroller"
@@ -236,12 +246,17 @@
   
   <div class="preview-footer">
     <div class="preview-spread-label">
-      Spread {currentSpreadIndex + 1} of {$spreadsStore.length}
+      {layout?.layoutMode === 'single' ? 'Page' : 'Spread'} 
+      {layout?.layoutMode === 'single' ? currentPageNumber : currentSpreadIndex + 1}
+      <span style="color: #64748b; font-weight: 400; font-size: 0.8rem;">
+        / {layout?.layoutMode === 'single' ? totalPages : $spreadsStore.length}
+      </span>
       <span class="zoom-text">({Math.round(currentZoom * 100)}%)</span>
     </div>
     <PreviewControls />
   </div>
 </div>
+
 
 <style>
   .preview-container {
