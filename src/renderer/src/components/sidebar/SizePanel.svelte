@@ -1,6 +1,7 @@
 <script>
   import SidebarPanel from './SidebarPanel.svelte';
   import { albumSettingsStore } from '../../stores/settings.js';
+  import { layoutConfigStore } from '../../stores/ui.js';
   import { albumSizePresets, fromUnitToUnit } from '../../lib/utils.js';
 
   $: settings = $albumSettingsStore;
@@ -118,6 +119,25 @@
   <div class="form-row">
     <label for="margin-outer">Outer</label>
     <input type="number" id="margin-outer" value={settings.globalMargins.outer} step="0.1" on:input={(e) => handleMarginChange('outer', e.target.value)} />
+  </div>
+
+  <h3 class="panel-header sub">Layout Engine</h3>
+  
+  <div class="form-row">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+      <label for="slot-gap" style="margin: 0;">Slot Gap</label>
+      <span style="font-size: 0.75rem; color: #94a3b8;">{$layoutConfigStore.slotGap}px</span>
+    </div>
+    <input 
+      type="range" 
+      id="slot-gap"
+      min="0" 
+      max="80" 
+      step="2"
+      value={$layoutConfigStore.slotGap}
+      on:input={(e) => layoutConfigStore.update(c => ({ ...c, slotGap: parseInt(e.target.value) }))}
+      style="width: 100%; height: 6px; background: #334155; border-radius: 3px; appearance: none; cursor: pointer;"
+    />
   </div>
 
 

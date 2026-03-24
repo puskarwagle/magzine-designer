@@ -12,6 +12,27 @@ export const projectStore = writable({
   ]
 });
 
+export const activeFoldersStore = writable(new Set());
+export const activeImagesStore = writable(new Set());
+
+export function toggleActiveFolder(folderName) {
+  activeFoldersStore.update(set => {
+    const newSet = new Set(set);
+    if (newSet.has(folderName)) newSet.delete(folderName);
+    else newSet.add(folderName);
+    return newSet;
+  });
+}
+
+export function toggleActiveImage(imgId) {
+  activeImagesStore.update(set => {
+    const newSet = new Set(set);
+    if (newSet.has(imgId)) newSet.delete(imgId);
+    else newSet.add(imgId);
+    return newSet;
+  });
+}
+
 export const addImagesToProject = (newFolderData) => {
   if (newFolderData.folderPath) {
     localStorage.setItem('lastFolderPath', newFolderData.folderPath);

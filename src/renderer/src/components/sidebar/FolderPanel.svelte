@@ -1,7 +1,12 @@
 <script>
-  import { projectStore, addImagesToProject } from '../../stores/project.js';
+  import { projectStore, addImagesToProject, activeFoldersStore, activeImagesStore, toggleActiveFolder, toggleActiveImage } from '../../stores/project.js';
   import { addImageToCurrentSpread, usedImageIdsStore } from '../../stores/spreads.js';
+  import { currentMenuStore } from '../../stores/ui.js';
   import SidebarPanel from './SidebarPanel.svelte';
+
+  function handleGroupClick(source) {
+    toggleActiveFolder(source);
+  }
 
   async function handlePickFolder() {
     try {
@@ -20,8 +25,7 @@
   }
 
   function handleImageClick(img) {
-    console.log('Thumbnail clicked:', img.id);
-    addImageToCurrentSpread(img.id);
+    toggleActiveImage(img.id);
   }
 
   $: images = $projectStore.images;
@@ -80,22 +84,33 @@
       />
       <button class="button secondary" on:click={handlePickFolder}>Select</button>
     </div>
-    <p class="form-hint">Add local folders or sample images to your library.</p>
+    <p class="form-hint">Add folders or click individual photos to add them to your pool.</p>
   </div>
 
   {#each Object.entries(groups) as [source, groupImages]}
     {@const visibleLimit = visibleCounts[source] || INITIAL_VISIBLE}
-    <div class="panel-header sub group-header">
+    <div 
+      class="panel-header sub group-header clickable" 
+      class:active={$activeFoldersStore.has(source)}
+      on:click={() => handleGroupClick(source)}
+      on:keydown={(e) => e.key === 'Enter' && handleGroupClick(source)}
+      role="button"
+      tabindex="0"
+      aria-label="Toggle folder {source}"
+    >
       <span>{source}</span>
-      {#if visibleLimit > INITIAL_VISIBLE}
-        <button 
-          class="collapse-btn" 
-          title="Collapse group" 
-          on:click={() => resetGroup(source)}
-        >
-          ^
-        </button>
-      {/if}
+      <div style="display: flex; gap: 0.5rem; align-items: center;">
+        <span class="count-badge">{groupImages.length}</span>
+        {#if visibleLimit > INITIAL_VISIBLE}
+          <button 
+            class="collapse-btn" 
+            title="Collapse group" 
+            on:click|stopPropagation={() => resetGroup(source)}
+          >
+            ^
+          </button>
+        {/if}
+      </div>
     </div>
     
     <div class="image-pool-grid">
@@ -103,6 +118,7 @@
         <div 
           class="thumb" 
           class:used={$usedImageIdsStore.has(img.id)}
+          class:active={$activeImagesStore.has(img.id) || $activeFoldersStore.has(img.source)}
           class:source-folder={img.source === 'menu content images'}
           title={img.fileName || img.id}
           draggable="true"
@@ -167,6 +183,31 @@
     color: #3b82f6;
   }
 
+  .group-header.clickable {
+    cursor: pointer;
+    transition: background 0.2s;
+    user-select: none;
+  }
+
+  .group-header.clickable:hover {
+    background: rgba(59, 130, 246, 0.1);
+    color: #3b82f6;
+  }
+
+  .group-header.active {
+    background: rgba(37, 99, 235, 0.2);
+    border-left: 3px solid #3b82f6;
+    color: #3b82f6;
+  }
+
+  .count-badge {
+    font-size: 0.75rem;
+    background: #1e293b;
+    padding: 2px 6px;
+    border-radius: 10px;
+    color: #94a3b8;
+  }
+
   .thumb {
     aspect-ratio: 1;
     border-radius: 4px;
@@ -182,9 +223,15 @@
     border: 2px solid rgba(59, 130, 246, 0.4);
   }
 
+  .thumb.active {
+    border: 3px solid #3b82f6;
+    box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+    z-index: 1;
+  }
+
   .thumb.used {
-    border: 5px solid #3b82f6 !important;
-    box-shadow: 0 0 12px rgba(37, 99, 235, 0.6);
+    border: 4px solid #10b981 !important; /* Change used to green to distinguish from active pool */
+    box-shadow: 0 0 12px rgba(16, 185, 129, 0.4);
     z-index: 2;
   }
 

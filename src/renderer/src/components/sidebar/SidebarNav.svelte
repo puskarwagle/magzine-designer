@@ -5,17 +5,11 @@
     { id: 'size', label: 'Size', icon: '📏' },
     { id: 'layout', label: 'Layouts', icon: '🎨' },
     { id: 'folder', label: 'Images', icon: '📁' },
+    { id: 'new', label: 'New', icon: '✨' }
+  ];
+
+  const footerMenuItems = [
     { id: 'export', label: 'Export', icon: '📤' },
-    { id: 'backgrounds', label: 'Backgrounds', icon: '🖼️' },
-    { id: 'themes', label: 'Themes', icon: '🎭' },
-    { id: 'text', label: 'Text', icon: '✍️' },
-    { id: 'shapes', label: 'Shapes', icon: '🔷' },
-    { id: 'frames', label: 'Frames', icon: '🔳' },
-    { id: 'clipart', label: 'Clipart', icon: '📦' },
-    { id: 'stickers', label: 'Stickers', icon: '🦄' },
-    { id: 'borders', label: 'Borders', icon: '🏁' },
-    { id: 'overlays', label: 'Overlays', icon: '🌫️' },
-    { id: 'color-grading', label: 'Color Grading', icon: '🌈' },
     { id: 'settings', label: 'Settings', icon: '⚙️' }
   ];
 
@@ -45,6 +39,15 @@
     {/each}
   </div>
   <div class="nav-footer">
+    {#each footerMenuItems as item}
+      <button 
+        class="nav-btn { $currentMenuStore === item.id ? 'active' : '' }"
+        on:click={() => selectMenu(item.id)}
+        title={item.label}
+      >
+        <span class="nav-icon">{item.icon}</span>
+      </button>
+    {/each}
     <button 
       class="nav-btn collapse-btn { $uiSettingsStore.menuCollapsed ? 'is-collapsed' : '' }"
       on:click={toggleCollapse}
@@ -104,7 +107,9 @@
 
   .nav-footer {
     display: flex;
-    justify-content: center;
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: center;
     padding-top: 0.5rem;
     margin-top: 0.5rem;
     border-top: 1px solid #1e293b;
@@ -119,6 +124,8 @@
     padding-left: 0.5rem;
     margin-left: 0.5rem;
     align-items: center;
+    flex-direction: row;
+    gap: 0.5rem;
   }
 
   .nav-btn {

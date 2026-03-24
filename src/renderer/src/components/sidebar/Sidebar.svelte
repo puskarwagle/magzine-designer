@@ -9,16 +9,7 @@
   import ExportPanel from './ExportPanel.svelte';
 
   // New Coming Soon Panels
-  import BackgroundsPanel from './panels/BackgroundsPanel.svelte';
-  import ThemesPanel from './panels/ThemesPanel.svelte';
-  import TextPanel from './panels/TextPanel.svelte';
-  import ShapesPanel from './panels/ShapesPanel.svelte';
-  import FramesPanel from './panels/FramesPanel.svelte';
-  import ClipartPanel from './panels/ClipartPanel.svelte';
-  import StickersPanel from './panels/StickersPanel.svelte';
-  import BordersPanel from './panels/BordersPanel.svelte';
-  import OverlaysPanel from './panels/OverlaysPanel.svelte';
-  import ColorGradingPanel from './panels/ColorGradingPanel.svelte';
+  import NewPanel from './panels/NewPanel.svelte';
   import SettingsPanel from './panels/SettingsPanel.svelte';
 
   $: activeMenu = $currentMenuStore;
@@ -48,44 +39,8 @@
       <ExportPanel />
     {/if}
 
-    {#if activeMenu === 'backgrounds'}
-      <BackgroundsPanel />
-    {/if}
-
-    {#if activeMenu === 'themes'}
-      <ThemesPanel />
-    {/if}
-
-    {#if activeMenu === 'text'}
-      <TextPanel />
-    {/if}
-
-    {#if activeMenu === 'shapes'}
-      <ShapesPanel />
-    {/if}
-
-    {#if activeMenu === 'frames'}
-      <FramesPanel />
-    {/if}
-
-    {#if activeMenu === 'clipart'}
-      <ClipartPanel />
-    {/if}
-
-    {#if activeMenu === 'stickers'}
-      <StickersPanel />
-    {/if}
-
-    {#if activeMenu === 'borders'}
-      <BordersPanel />
-    {/if}
-
-    {#if activeMenu === 'overlays'}
-      <OverlaysPanel />
-    {/if}
-
-    {#if activeMenu === 'color-grading'}
-      <ColorGradingPanel />
+    {#if activeMenu === 'new'}
+      <NewPanel />
     {/if}
 
     {#if activeMenu === 'settings'}

@@ -1,5 +1,6 @@
 <script>
   import SidebarPanel from './SidebarPanel.svelte';
+  import { projectStore, activeFoldersStore, activeImagesStore } from '../../stores/project.js';
   import { 
     spreadsStore, 
     currentSpreadIndexStore, 
@@ -9,9 +10,10 @@
     removeSpread,
     destroySpread,
     isSpreadPopulated,
-    shuffleCurrentSpread
+    shuffleCurrentSpread,
+    addImageToCurrentSpread,
+    usedImageIdsStore
   } from '../../stores/spreads.js';
-  import { projectStore } from '../../stores/project.js';
   import { layoutConfigStore } from '../../stores/ui.js';
   import { LayoutEngine } from '../../lib/layoutEngine.js';
 
@@ -103,6 +105,57 @@
     destroySpread(currentSpreadIndex);
     showDeleteConfirm = false;
   }
+
+  // --- Image Integration ---
+  $: activeFolders = $activeFoldersStore;
+  $: activeImages = $activeImagesStore;
+  $: allImages = $projectStore.images;
+  
+  $: folderImages = (() => {
+    const pool = new Set();
+    
+    // Add all images from selected folders
+    allImages.forEach(img => {
+      if (activeFolders.has(img.source)) {
+        pool.add(img);
+      }
+    });
+    
+    // Add specifically selected images
+    allImages.forEach(img => {
+      if (activeImages.has(img.id)) {
+        pool.add(img);
+      }
+    });
+    
+    return Array.from(pool);
+  })();
+
+  let visibleCount = 24;
+  $: visibleImages = folderImages.slice(0, visibleCount);
+
+  function handleLoadMore() {
+    visibleCount += 20;
+  }
+
+  function handleImageClick(imgId) {
+    addImageToCurrentSpread(imgId);
+  }
+
+  function handleDragStart(e, imgId) {
+    e.dataTransfer.setData('imageId', imgId);
+    e.dataTransfer.effectAllowed = 'copy';
+  }
+
+  // Auto-load more when scrolling near bottom
+  function handleScroll(e) {
+    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+    if (scrollHeight - scrollTop <= clientHeight + 100) {
+      if (visibleCount < folderImages.length) {
+        handleLoadMore();
+      }
+    }
+  }
 </script>
 
 <SidebarPanel>
@@ -128,29 +181,24 @@
   </div>
 
   {#if showDeleteConfirm}
-    <div class="info-box danger" style="margin-bottom: 1rem; border: 1px solid #ef4444;">
-      <p style="margin: 0 0 0.5rem 0; font-weight: 600;">Delete this {currentSpread.type}?</p>
-      <p style="margin: 0 0 1rem 0; font-size: 0.75rem;">This entry contains images. Would you like to remove it (save for later) or destroy it permanently?</p>
-      <div style="display: flex; gap: 0.5rem;">
+    <div class="info-box danger compact">
+      <p>Delete {currentSpread.type}?</p>
+      <div style="display: flex; gap: 0.25rem;">
         <button class="button secondary small" style="flex: 1;" on:click={confirmRemove}>Remove</button>
         <button class="button danger small" style="flex: 1;" on:click={confirmDestroy}>Destroy</button>
       </div>
-      <button 
-        class="button ghost small" 
-        style="width: 100%; margin-top: 0.5rem;" 
-        on:click={() => showDeleteConfirm = false}
-      >Cancel</button>
+      <button class="button ghost small" style="width: 100%; margin-top: 0.25rem;" on:click={() => showDeleteConfirm = false}>Cancel</button>
     </div>
   {:else}
-    <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem;">
-      <button class="button" style="flex: 2;" on:click={handleAdd}>
-        + Add {layoutMode === 'single' ? 'Page' : 'Spread'}
+    <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem;">
+      <button class="button" style="flex: 1;" on:click={handleAdd}>
+        + {layoutMode === 'single' ? 'Page' : 'Spread'}
       </button>
       <button 
         class="button secondary" 
-        style="flex: 1; color: #ef4444;" 
         on:click={initiateDelete}
-        title="Delete current {currentSpread?.type}"
+        title="Delete"
+        style="padding: 0 12px; color: #ef4444;"
       >
         ✕
       </button>
@@ -173,34 +221,48 @@
     </div>
   </div>
 
-  <div class="panel-header sub">Engine Settings</div>
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 1rem;">
+    <button class="button" on:click={cyclePreset}>Next Layout</button>
+    <button class="button secondary" on:click={shuffleImages}>Shuffle</button>
+  </div>
 
-  <div class="form-row">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
-      <span class="label" style="margin: 0;">Slot Gap</span>
-      <span style="font-size: 0.75rem; color: #94a3b8;">{$layoutConfigStore.slotGap}px</span>
+
+  {#if folderImages.length > 0}
+    <div class="panel-header sub album-images-header">
+      <span>Active Pool</span>
+      <span class="count-badge">{folderImages.length}</span>
     </div>
-    <input 
-      type="range" 
-      min="0" 
-      max="80" 
-      step="2"
-      value={$layoutConfigStore.slotGap}
-      on:input={(e) => layoutConfigStore.update(c => ({ ...c, slotGap: parseInt(e.target.value) }))}
-      style="width: 100%; height: 6px; background: #334155; border-radius: 3px; appearance: none; cursor: pointer;"
-    />
-  </div>
 
-  <div class="panel-header sub">Actions</div>
-  
-  <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-    <button class="button" on:click={cyclePreset}>Next Layout Preset</button>
-    <button class="button secondary" on:click={shuffleImages}>Shuffle Images</button>
-  </div>
-
-  <div class="info-box" style="margin-top: 1rem; padding: 0.75rem; background: #1e293b; border-radius: 0.5rem; font-size: 0.8rem; color: #94a3b8;">
-    <p style="margin: 0;"><strong>Tip:</strong> Use the ✕ button to remove or destroy a spread. Removed spreads are preserved in the background.</p>
-  </div>
+    <div class="album-images-container" on:scroll={handleScroll}>
+      <div class="image-grid">
+        {#each visibleImages as img (img.id)}
+          <div 
+            class="image-thumb" 
+            class:used={$usedImageIdsStore.has(img.id)}
+            draggable="true"
+            on:dragstart={(e) => handleDragStart(e, img.id)}
+            on:click={() => handleImageClick(img.id)}
+            role="button"
+            tabindex="0"
+            on:keydown={(e) => e.key === 'Enter' && handleImageClick(img.id)}
+          >
+            <img src={img.path} alt={img.fileName || img.id} loading="lazy" />
+          </div>
+        {/each}
+      </div>
+      
+      {#if visibleCount < folderImages.length}
+        <button class="button ghost small load-more" on:click={handleLoadMore}>
+          Load More (+{folderImages.length - visibleCount})
+        </button>
+      {/if}
+    </div>
+  {:else}
+    <div class="info-box" style="margin-top: 2rem; text-align: center;">
+      <p style="margin-bottom: 0.5rem; color: #64748b;">No selection</p>
+      <p style="font-size: 0.75rem;">Select folders or individual photos in the <strong>Photos</strong> menu to populate your layout pool.</p>
+    </div>
+  {/if}
 </SidebarPanel>
 
 <style>
@@ -220,6 +282,96 @@
   .ghost:hover {
     background: #1e293b;
     color: white;
+  }
+
+  .album-images-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid #1e293b;
+  }
+
+  .count-badge {
+    font-size: 0.7rem;
+    background: #2563eb;
+    color: white;
+    padding: 1px 6px;
+    border-radius: 10px;
+    font-weight: 600;
+  }
+
+  .album-images-container {
+    max-height: 400px;
+    overflow-y: auto;
+    margin-top: 0.5rem;
+    padding-right: 4px;
+  }
+
+  .image-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.25rem;
+  }
+
+  .album-images-container {
+    max-height: 550px;
+    overflow-y: auto;
+    margin-top: 0.5rem;
+    padding-right: 4px;
+  }
+
+  .compact p {
+    margin: 0 0 0.5rem 0;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  .image-thumb {
+    aspect-ratio: 1;
+    border-radius: 4px;
+    overflow: hidden;
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+  }
+
+  .image-thumb:hover {
+    border-color: #3b82f6;
+    transform: scale(1.05);
+  }
+
+  .image-thumb.used {
+    border: 3px solid #10b981;
+    opacity: 0.6;
+    box-shadow: 0 0 12px rgba(16, 185, 129, 0.3);
+  }
+
+  .image-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .load-more {
+    width: 100%;
+    margin-top: 0.75rem;
+    margin-bottom: 2rem;
+  }
+
+  /* Custom scrollbar for the image container */
+  .album-images-container::-webkit-scrollbar {
+    width: 4px;
+  }
+  .album-images-container::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .album-images-container::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 2px;
   }
 </style>
 
