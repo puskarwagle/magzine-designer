@@ -58,7 +58,7 @@ describe('main IPC handlers', () => {
     expect(result.images[0]).toMatchObject({
       id: 'img-0',
       fileName: 'a.jpg',
-      path: path.join('/photos', 'a.jpg'),
+      path: `media://${path.join('/photos', 'a.jpg')}`,
     });
     expect(result.images[1].id).toBe('img-1');
   });
@@ -102,7 +102,8 @@ describe('main IPC handlers', () => {
     expect(mockFs.promises.readdir).toHaveBeenCalledWith('/app-root/sample-images');
     expect(result.folderPath).toBe('/app-root/sample-images');
     expect(result.images).toHaveLength(2);
-    expect(result.images[0].id).toBe('img-0');
+    expect(result.images[0].id).toBe('img-sample-0');
+    expect(result.images[0].path).toBe(`media://${path.join('/app-root/sample-images', 'x.jpeg')}`);
   });
 
   it('load-sample-folder returns null folderPath and empty images on error', async () => {

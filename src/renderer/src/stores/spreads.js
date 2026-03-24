@@ -106,15 +106,41 @@ export function updateSlotImage(spreadIndex, pageType, oldImageId, newImageId) {
         newIds[index] = newImageId;
         return { ...pageState, imageIds: newIds };
       }
-      // If it's a new image being dropped (oldImageId might be null/empty or we are adding to a slot)
-      // For now, let's assume it replaces. If we want to ADD, we need a different logic.
-      // If oldImageId is null, we might be adding to an empty slot.
       return pageState;
     };
 
     if (pageType === 'left') spread.leftPage = updatePage(spread.leftPage);
     else if (pageType === 'right') spread.rightPage = updatePage(spread.rightPage);
     else if (pageType === 'spread') spread.spreadPage = updatePage(spread.spreadPage);
+
+    spreads[spreadIndex] = spread;
+    return spreads;
+  });
+}
+
+/**
+ * Adds an image to the current spread/page.
+ */
+export function addImageToCurrentSpread(imageId) {
+  const spreadIndex = get(currentSpreadIndexStore);
+  const layoutMode = get(layoutModeStore);
+  const activePage = get(activePageStore);
+  
+  spreadsStore.update($spreads => {
+    const spreads = [...$spreads];
+    const spread = { ...spreads[spreadIndex] };
+    if (!spread) return $spreads;
+
+    const pageType = layoutMode === 'spread' ? 'spread' : activePage;
+
+    const addToPage = (pageState) => {
+      const newImageIds = [...pageState.imageIds, imageId];
+      return LayoutEngine.updatePageImages(pageState, newImageIds);
+    };
+
+    if (pageType === 'left') spread.leftPage = addToPage(spread.leftPage);
+    else if (pageType === 'right') spread.rightPage = addToPage(spread.rightPage);
+    else if (pageType === 'spread') spread.spreadPage = addToPage(spread.spreadPage);
 
     spreads[spreadIndex] = spread;
     return spreads;

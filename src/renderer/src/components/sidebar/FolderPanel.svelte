@@ -1,5 +1,6 @@
 <script>
   import { projectStore, addImagesToProject } from '../../stores/project.js';
+  import { addImageToCurrentSpread } from '../../stores/spreads.js';
   import SidebarPanel from './SidebarPanel.svelte';
 
   async function handlePickFolder() {
@@ -16,6 +17,10 @@
   function handleDragStart(e, img) {
     e.dataTransfer.setData('imageId', img.id);
     e.dataTransfer.effectAllowed = 'copy';
+  }
+
+  function handleImageClick(img) {
+    addImageToCurrentSpread(img.id);
   }
 
   $: images = $projectStore.images;
@@ -101,6 +106,8 @@
           role="button"
           tabindex="0"
           on:dragstart={(e) => handleDragStart(e, img)}
+          on:click={() => handleImageClick(img)}
+          on:keydown={(e) => e.key === 'Enter' && handleImageClick(img)}
         >
           <img src={img.path} alt={img.fileName || img.id} loading="lazy" />
         </div>
