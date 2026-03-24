@@ -53,6 +53,10 @@
 
     visibleCounts[source] = current + increment;
   }
+
+  function resetGroup(source) {
+    visibleCounts[source] = INITIAL_VISIBLE;
+  }
 </script>
 
 <SidebarPanel>
@@ -74,8 +78,19 @@
   </div>
 
   {#each Object.entries(groups) as [source, groupImages]}
-    {@const visibleLimit = visibleCounts[source] || 5}
-    <div class="panel-header sub">{source}</div>
+    {@const visibleLimit = visibleCounts[source] || INITIAL_VISIBLE}
+    <div class="panel-header sub group-header">
+      <span>{source}</span>
+      {#if visibleLimit > INITIAL_VISIBLE}
+        <button 
+          class="collapse-btn" 
+          title="Collapse group" 
+          on:click={() => resetGroup(source)}
+        >
+          ^
+        </button>
+      {/if}
+    </div>
     
     <div class="image-pool-grid">
       {#each groupImages.slice(0, visibleLimit) as img (img.id)}
@@ -118,6 +133,28 @@
     gap: 0.5rem;
     padding-bottom: 1rem;
     padding-right: 0.5rem;
+  }
+
+  .group-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .collapse-btn {
+    background: none;
+    border: none;
+    color: #94a3b8;
+    cursor: pointer;
+    font-size: 1.2rem;
+    font-weight: bold;
+    padding: 0 4px;
+    line-height: 1;
+    transition: color 0.2s;
+  }
+
+  .collapse-btn:hover {
+    color: #3b82f6;
   }
 
   .thumb {
