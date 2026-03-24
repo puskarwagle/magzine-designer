@@ -116,8 +116,9 @@
           dash={[10, 5]}
           listening={false}
         />
+
         {#if layout.layoutMode === 'spread' || (layout.isCover && $albumSettingsStore.includeCover)}
-          <!-- Render full spread with two pages -->
+          <!-- PASS 1: BACKGROUNDS FOR ALL PAGES -->
           <KonvaPage
             x={0}
             isLeftPage={true}
@@ -126,6 +127,7 @@
             slotsData={layout.leftPageSlots}
             margins={layout.margins}
             pageType={layout.layoutMode === 'spread' || layout.isCover ? 'spread' : 'left'}
+            renderMode="background"
           />
           <KonvaPage
             x={layout.pageWidthPx + layout.spineWidthPx}
@@ -135,9 +137,32 @@
             slotsData={layout.rightPageSlots}
             margins={layout.margins}
             pageType={layout.layoutMode === 'spread' || layout.isCover ? 'spread' : 'right'}
+            renderMode="background"
+          />
+
+          <!-- PASS 2: SLOTS FOR ALL PAGES (Drawn on top of all backgrounds) -->
+          <KonvaPage
+            x={0}
+            isLeftPage={true}
+            pageWidthPx={layout.pageWidthPx}
+            pageHeightPx={layout.pageHeightPx}
+            slotsData={layout.leftPageSlots}
+            margins={layout.margins}
+            pageType={layout.layoutMode === 'spread' || layout.isCover ? 'spread' : 'left'}
+            renderMode="slots"
+          />
+          <KonvaPage
+            x={layout.pageWidthPx + layout.spineWidthPx}
+            isLeftPage={false}
+            pageWidthPx={layout.pageWidthPx}
+            pageHeightPx={layout.pageHeightPx}
+            slotsData={layout.rightPageSlots}
+            margins={layout.margins}
+            pageType={layout.layoutMode === 'spread' || layout.isCover ? 'spread' : 'right'}
+            renderMode="slots"
           />
         {:else if layout.layoutMode === 'single'}
-          <!-- Render single active page, centered -->
+          <!-- Render single active page (centered) - order doesn't matter here but using pass pattern for consistency -->
           {@const activePageIsLeft = layout.activePage === 'left'}
           {@const singlePageX = (layout.totalSpreadWidthPx - layout.pageWidthPx) / 2}
           <KonvaPage
