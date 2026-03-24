@@ -53,7 +53,7 @@ describe('project store', () => {
     expect(state.images.map(img => img.path)).toEqual(['/path/1.jpg', '/path/2.jpg']);
   });
 
-  it('initProject loads saved folder and presets', async () => {
+  it('initProject loads saved folder', async () => {
     localStorage.setItem('lastFolderPath', '/saved/path');
     
     // Mock window.api
@@ -61,26 +61,16 @@ describe('project store', () => {
       getImagesInFolder: vi.fn().mockResolvedValue({
         folderPath: '/saved/path',
         images: [{ id: 'img1', path: '/saved/path/1.jpg' }]
-      }),
-      getLayoutPresets: vi.fn().mockResolvedValue([
-        { id: 'P1', imageCount: 1, slots: [] }
-      ])
+      })
     };
-
-    const spyLoadPresets = vi.spyOn(LayoutEngine, 'loadPresetsFromData');
 
     await initProject();
 
     expect(window.api.getImagesInFolder).toHaveBeenCalledWith('/saved/path');
-    expect(window.api.getLayoutPresets).toHaveBeenCalled();
     
     const projectState = get(projectStore);
     expect(projectState.images).toHaveLength(1);
     
-    const presetsState = get(presetsStore);
-    expect(presetsState).toHaveLength(1);
-    expect(spyLoadPresets).toHaveBeenCalled();
-
     delete window.api;
   });
 });

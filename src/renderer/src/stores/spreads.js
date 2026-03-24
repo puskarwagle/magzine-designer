@@ -8,9 +8,9 @@ function createDefaultSpread(type = 'spread') {
   return {
     id: Date.now() + Math.random(),
     type: type, // 'single' or 'spread'
-    leftPage: { imageIds: [], currentPresetIndex: 0 },
-    rightPage: { imageIds: [], currentPresetIndex: 0 },
-    spreadPage: { imageIds: [], currentPresetIndex: 0 },
+    leftPage: { imageIds: [], currentPresetIndex: 0, customSlots: {} },
+    rightPage: { imageIds: [], currentPresetIndex: 0, customSlots: {} },
+    spreadPage: { imageIds: [], currentPresetIndex: 0, customSlots: {} },
     useCustomMargins: false,
     margins: { top: 0.5, bottom: 0.5, inner: 0.5, outer: 0.5 }
   };
@@ -27,6 +27,7 @@ export const activePageStore = writable('left'); // 'left' or 'right'
 export const layoutModeStore = writable('spread'); // 'single' (per-page) or 'spread' (cross-gutter)
 
 export const lockedSlotsStore = writable(new Map());
+export const selectedSlotIdStore = writable(null);
 
 /**
  * Derived store that tracks all unique image IDs currently used in any spread or page.
@@ -137,6 +138,65 @@ export function updateSlotImage(spreadIndex, pageType, oldImageId, newImageId) {
     spreads[spreadIndex] = spread;
     return [...spreads];
   });
+}
+
+/**
+ * Updates the custom geometry (x, y, w, h in 0-1) for a slot.
+ */
+export function updateSlotGeometry(spreadIndex, pageType, imageId, newGeo) {
+  spreadsStore.update($spreads => {
+    const spreads = [...$spreads];
+    const spread = { ...spreads[spreadIndex] };
+    if (!spread) return $spreads;
+
+    const updatePage = (pageState) => {
+      const customSlots = { ...(pageState.customSlots || {}) };
+      customSlots[imageId] = { ...newGeo };
+      return { ...pageState, customSlots };
+    };
+
+    if (pageType === 'left') spread.leftPage = updatePage(spread.leftPage);
+    else if (pageType === 'right') spread.rightPage = updatePage(spread.rightPage);
+    else if (pageType === 'spread') spread.spreadPage = updatePage(spread.spreadPage);
+
+    spreads[spreadIndex] = spread;
+    return [...spreads];
+  });
+}
+
+/**
+ * Updates the custom geometry using pixel coordinates.
+ */
+export function updateSlotGeometryInPixels(spreadIndex, pageType, isLeftPage, imageId, pixelGeo) {
+  const layouts = get(activeSpreadLayout);
+  const settings = get(albumSettingsStore);
+  
+  const unit = settings.unit || 'in';
+  const dpi = Number(settings.dpi) || 300;
+  
+  let normGeo = { x: 0, y: 0, w: 0, h: 0 };
+
+  if (layouts.layoutMode === 'spread' && pageType === 'spread') {
+    const marginBox = LayoutEngine.computeSpreadMarginBox(layouts.margins, layouts.totalSpreadWidthPx, layouts.spreadHeightPx, unit, dpi);
+    const halfW = marginBox.width / 2;
+    
+    // Convert current pixelGeo (relative to page) to absolute spread coordinates
+    const rightPageStartX = layouts.pageWidthPx + (layouts.spineWidthPx || 0);
+    const absoluteX = isLeftPage ? pixelGeo.x : pixelGeo.x + rightPageStartX;
+    
+    normGeo.x = (absoluteX - marginBox.left) / halfW;
+    normGeo.y = (pixelGeo.y - marginBox.top) / marginBox.height;
+    normGeo.w = pixelGeo.w / halfW;
+    normGeo.h = pixelGeo.h / marginBox.height;
+  } else {
+    const marginBox = LayoutEngine.computeMarginBox(layouts.margins, layouts.pageWidthPx, layouts.pageHeightPx, unit, dpi, isLeftPage);
+    normGeo.x = (pixelGeo.x - marginBox.left) / marginBox.width;
+    normGeo.y = (pixelGeo.y - marginBox.top) / marginBox.height;
+    normGeo.w = pixelGeo.w / marginBox.width;
+    normGeo.h = pixelGeo.h / marginBox.height;
+  }
+
+  updateSlotGeometry(spreadIndex, pageType, imageId, normGeo);
 }
 
 /**

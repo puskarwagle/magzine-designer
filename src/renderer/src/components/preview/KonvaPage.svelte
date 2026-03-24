@@ -12,6 +12,7 @@
   export let pageHeightPx;
   export let slotsData;
   export let margins;
+  export let pageType; // 'left' | 'right' | 'spread'
 
   $: settings = $albumSettingsStore;
   $: isActive = $activePageStore === (isLeftPage ? 'left' : 'right');
@@ -78,6 +79,8 @@
       imageRect={data.imageRect}
       imageData={$projectStore.images.find(img => img.id === data.imageId)}
       slotInfo={data.slot}
+      pageType={pageType}
+      isLeftPage={isLeftPage}
     />
   {/each}
 

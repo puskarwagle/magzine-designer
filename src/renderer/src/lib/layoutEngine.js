@@ -90,6 +90,7 @@ export const LayoutEngine = {
   getSpreadPresetsForCount,
   generateGenericGrid,
   generateGenericSpreadGrid,
+  generateDynamicPreset,
   
   // Orientation Matching
   getImageOrientation,
@@ -255,11 +256,11 @@ function generateGenericGrid(n) {
  * @returns {LayoutPreset[]}
  */
 function getPresetsForCount(imageCount) {
-  const presets = presetsByCount.get(imageCount);
-  if (presets && presets.length > 0) {
-    return presets;
-  }
-  return [generateGenericGrid(imageCount)];
+  return [
+    { id: `DYNAMIC-P-${imageCount}-0`, label: 'Dynamic (Auto)', imageCount, pageType: 'single', style: 'clean', slots: [] },
+    { id: `DYNAMIC-P-${imageCount}-1`, label: 'Dynamic (Horizontal)', imageCount, pageType: 'single', style: 'clean', slots: [] },
+    { id: `DYNAMIC-P-${imageCount}-2`, label: 'Dynamic (Vertical)', imageCount, pageType: 'single', style: 'clean', slots: [] },
+  ];
 }
 
 /**
@@ -315,20 +316,38 @@ function mapImagesToSlots(imageIds, slots) {
  * @param {string[]} params.imageIds - Ordered array of image IDs
  * @param {LayoutPreset} params.preset - The layout preset to use
  * @param {Object} params.marginBox - {left, top, width, height} in pixels
+ * @param {Object} params.customSlots - Optional manual overrides { [imageId]: {x, y, w, h} }
  * @returns {Array<{imageId: string, x: number, y: number, w: number, h: number, visible: boolean, slot: Slot|null}>}
  */
-function computeSlotRectangles({ imageIds, preset, marginBox }) {
-  const mapping = mapImagesToSlots(imageIds, preset.slots);
+function computeSlotRectangles({ imageIds, preset, marginBox, customSlots = {}, images = [] }) {
+  // Handle Dynamic Layout generation
+  let activePreset = preset;
+  if (preset.id.startsWith('DYNAMIC')) {
+    const pageImages = imageIds.map(id => images.find(img => img.id === id)).filter(Boolean);
+    
+    // Determine strategy from ID suffix
+    const parts = preset.id.split('-');
+    const strategy = parseInt(parts[parts.length - 1]) || 0;
+    
+    const generated = generateDynamicPreset(pageImages, preset.pageType === 'spread', { strategy });
+    activePreset = { ...preset, slots: generated.slots };
+  }
+
+  const mapping = mapImagesToSlots(imageIds, activePreset.slots);
+  const isSpread = activePreset.pageType === 'spread';
+  const unitW = isSpread ? marginBox.width / 2 : marginBox.width;
   
   return mapping.map(({ imageId, slot }) => {
-    if (!slot) {
+    if (!slot && !customSlots[imageId]) {
       return { imageId, x: 0, y: 0, w: 0, h: 0, visible: false, slot: null };
     }
 
-    const x = marginBox.left + slot.x * marginBox.width;
-    const y = marginBox.top + slot.y * marginBox.height;
-    const w = slot.w * marginBox.width;
-    const h = slot.h * marginBox.height;
+    // Prioritize custom slot coordinates if available
+    const custom = customSlots[imageId];
+    const x = marginBox.left + (custom ? custom.x : slot.x) * unitW;
+    const y = marginBox.top + (custom ? custom.y : slot.y) * marginBox.height;
+    const w = (custom ? custom.w : slot.w) * unitW;
+    const h = (custom ? custom.h : slot.h) * marginBox.height;
 
     return { imageId, x, y, w, h, visible: true, slot };
   });
@@ -415,6 +434,8 @@ function applyPresetToPage({
     imageIds: pageState.imageIds,
     preset,
     marginBox,
+    customSlots: pageState.customSlots || {},
+    images,
   });
 
   const imageMap = new Map(images.map(img => [img.id, img]));
@@ -630,11 +651,13 @@ function isSlotInGutter(slot) {
  * @returns {LayoutPreset[]}
  */
 function getSpreadPresetsForCount(imageCount) {
-  const presets = spreadPresetsByCount.get(imageCount);
-  if (presets && presets.length > 0) {
-    return presets;
-  }
-  return [generateGenericSpreadGrid(imageCount)];
+  return [
+    { id: `DYNAMIC-S-${imageCount}-0`, label: 'Dynamic (Balanced)', imageCount, pageType: 'spread', style: 'clean', slots: [] },
+    { id: `DYNAMIC-S-${imageCount}-1`, label: 'Dynamic (Sequential)', imageCount, pageType: 'spread', style: 'clean', slots: [] },
+    { id: `DYNAMIC-S-${imageCount}-2`, label: 'Dynamic (Interleaved)', imageCount, pageType: 'spread', style: 'clean', slots: [] },
+    { id: `DYNAMIC-S-${imageCount}-3`, label: 'Dynamic (H-Bias)', imageCount, pageType: 'spread', style: 'clean', slots: [] },
+    { id: `DYNAMIC-S-${imageCount}-4`, label: 'Dynamic (V-Bias)', imageCount, pageType: 'spread', style: 'clean', slots: [] },
+  ];
 }
 
 /**
@@ -713,45 +736,93 @@ function applyPresetToSpread({
   spreadHeightPx,
   unit,
   dpi,
-  overridePreset,
 }) {
   const imageCount = spreadState.imageIds.length;
   if (imageCount === 0) {
     return [];
   }
 
-  let preset;
-  if (overridePreset) {
-    preset = overridePreset;
+  const imageMap = new Map(images.map(img => [img.id, img]));
+  const pageWidthPx = spreadWidthPx / 2;
+  const pageHeightPx = spreadHeightPx;
+  const rightPageStartX = pageWidthPx;
+
+  // Determine assignment and splitting strategies from cycling index
+  const presets = getSpreadPresetsForCount(imageCount);
+  const variant = spreadState.currentPresetIndex % presets.length;
+  
+  // variant 0: Balanced assignment, Auto split
+  // variant 1: Sequential assignment, Auto split
+  // variant 2: Interleaved assignment, Auto split
+  // variant 3: Balanced assignment, H-Bias split
+  // variant 4: Balanced assignment, V-Bias split
+  
+  const pageImages = spreadState.imageIds.map(id => imageMap.get(id)).filter(Boolean);
+  const imageRatios = pageImages.map(img => (img.width / img.height) || 1);
+  const indices = spreadState.imageIds.map((_, i) => i);
+  
+  let leftIndices, rightIndices;
+  let strategy = 0; // Auto split by default
+
+  if (imageCount === 1) {
+    leftIndices = [0];
+    rightIndices = [];
   } else {
-    const presets = getSpreadPresetsForCount(imageCount);
-    const presetIndex = spreadState.currentPresetIndex % presets.length;
-    preset = presets[presetIndex];
+    // Page Assignment logic
+    if (variant === 1) {
+      // Sequential: First half left, rest right
+      const mid = Math.ceil(imageCount / 2);
+      leftIndices = indices.slice(0, mid);
+      rightIndices = indices.slice(mid);
+    } else if (variant === 2) {
+      // Interleaved: even indices left, odd indices right
+      leftIndices = indices.filter(i => i % 2 === 0);
+      rightIndices = indices.filter(i => i % 2 !== 0);
+    } else {
+      // Balanced (Default for variant 0, 3, 4)
+      const [groupA, groupB] = splitIntoTwo(indices, imageRatios);
+      leftIndices = groupA;
+      rightIndices = groupB;
+      
+      // Map splitting strategy
+      if (variant === 3) strategy = 1; // H-Bias
+      if (variant === 4) strategy = 2; // V-Bias
+    }
   }
 
-  const marginBox = computeSpreadMarginBox(margins, spreadWidthPx, spreadHeightPx, unit, dpi);
+  const leftIds = leftIndices.map(i => spreadState.imageIds[i]);
+  const rightIds = rightIndices.map(i => spreadState.imageIds[i]);
+
+  const marginBoxL = computeMarginBox(margins, pageWidthPx, pageHeightPx, unit, dpi, true);
+  const marginBoxR = computeMarginBox(margins, pageWidthPx, pageHeightPx, unit, dpi, false);
   
-  const sortedSlots = [...preset.slots].sort((a, b) => b.priority - a.priority);
-  const imageMap = new Map(images.map(img => [img.id, img]));
+  // Offset marginBoxR to absolute spread space
+  marginBoxR.left += rightPageStartX;
 
-  return spreadState.imageIds.map((imageId, index) => {
-    const slot = sortedSlots[index];
+  const slotRectsL = computeSlotRectangles({
+    imageIds: leftIds,
+    preset: { id: `DYNAMIC-L-${leftIds.length}-${strategy}`, pageType: 'single', slots: [] },
+    marginBox: marginBoxL,
+    images,
+  });
+
+  const slotRectsR = computeSlotRectangles({
+    imageIds: rightIds,
+    preset: { id: `DYNAMIC-R-${rightIds.length}-${strategy}`, pageType: 'single', slots: [] },
+    marginBox: marginBoxR,
+    images,
+  });
+
+  const allSlotRects = [...slotRectsL, ...slotRectsR];
+
+  return allSlotRects.map(({ imageId, x, y, w, h, visible, slot }) => {
     const image = imageMap.get(imageId);
-    
-    if (!slot || !image) {
-      return null;
-    }
-
-    const halfW = marginBox.width / 2;
-    const x = marginBox.left + slot.x * halfW;
-    const y = marginBox.top + slot.y * marginBox.height;
-    const w = slot.w * halfW;
-    const h = slot.h * marginBox.height;
+    if (!visible || !image) return null;
 
     const imgW = image.width || 1000;
     const imgH = image.height || 1000;
     
-    const mode = slot?.mode || 'fit';
+    const mode = slot?.mode || 'fill';
     const imageRect = mode === 'fill'
       ? fillImageInSlot(imgW, imgH, w, h)
       : fitImageInSlot(imgW, imgH, w, h);
@@ -762,7 +833,7 @@ function applyPresetToSpread({
       slotRect: { x, y, w, h },
       imageRect,
       slot,
-      crossesGutter: isSlotInGutter(slot),
+      crossesGutter: false, // In this mode, images never cross the gutter
     };
   }).filter(Boolean);
 }
@@ -800,6 +871,138 @@ function shuffleImagesInPreset(imageIds, lockedIndices = new Set()) {
   }
   
   return result;
+}
+
+// ============================================================================
+// RECURSIVE PARTITION ENGINE (DYNAMIC LAYOUTS)
+// ============================================================================
+
+/**
+ * Generates a dynamic LayoutPreset using recursive binary partitioning.
+ * @param {Object[]} images - Array of image objects with {id, width, height}
+ * @param {boolean} isSpread - Whether this is a spread-mode layout
+ * @returns {LayoutPreset}
+ */
+export function generateDynamicPreset(images = [], isSpread = false, options = {}) {
+  const n = images.length;
+  if (n === 0) return isSpread ? generateGenericSpreadGrid(0) : generateGenericGrid(0);
+
+  const strategy = options.strategy || 0;
+  const ratios = images.map(img => (img.width / img.height) || 1);
+  const indices = images.map((_, i) => i);
+  const gap = GAP; // Normalized gap (0.02)
+
+  // Target rectangle in normalized coordinates
+  // For spreads, we partition in a 2x1 space
+  const rect = { x: 0, y: 0, w: isSpread ? 2 : 1, h: 1 };
+  
+  // Use a large scale for partitioning to avoid precision issues
+  const scale = 2000;
+  const pixelRect = { x: rect.x * scale, y: rect.y * scale, w: rect.w * scale, h: rect.h * scale };
+  const pixelGap = gap * scale;
+
+  const rawSlots = partition(indices, pixelRect, ratios, pixelGap, strategy);
+
+  const slots = rawSlots.map(({ imageIndex, rect: r }) => ({
+    id: `dyn-${imageIndex}`,
+    x: r.x / scale,
+    y: r.y / scale,
+    w: r.w / scale,
+    h: r.h / scale,
+    priority: n - imageIndex,
+    preferredRatio: getImageOrientation(images[imageIndex]?.width || 1, images[imageIndex]?.height || 1),
+    mode: 'fill'
+  }));
+
+  return {
+    id: `DYNAMIC-${isSpread ? 'S' : 'P'}-${n}-${strategy}`,
+    label: strategy === 0 ? 'Dynamic (Auto)' : (strategy === 1 ? 'Dynamic (Horizontal)' : 'Dynamic (Vertical)'),
+    imageCount: n,
+    pageType: isSpread ? 'spread' : 'single',
+    slots,
+  };
+}
+
+/**
+ * Recursive binary partition algorithm.
+ */
+function partition(indices, rect, ratios, gap, strategy = 0) {
+  if (indices.length === 0) return [];
+  if (indices.length === 1) {
+    return [{ imageIndex: indices[0], rect }];
+  }
+
+  const [groupA, groupB] = splitIntoTwo(indices, ratios);
+
+  // Split direction decision
+  let splitHorizontal;
+  if (strategy === 1) {
+    splitHorizontal = true;
+  } else if (strategy === 2) {
+    splitHorizontal = false;
+  } else {
+    splitHorizontal = rect.w >= rect.h;
+  }
+
+  if (splitHorizontal) {
+    // Left/Right split
+    // Weight by sum of aspect ratios (total horizontal "desire")
+    const sumA = groupA.reduce((s, i) => s + ratios[i], 0);
+    const sumB = groupB.reduce((s, i) => s + ratios[i], 0);
+    let ratio = sumA / (sumA + sumB);
+    ratio = Math.max(0.25, Math.min(0.75, ratio));
+
+    const w1 = Math.round((rect.w - gap) * ratio);
+    const w2 = rect.w - gap - w1;
+    const rectA = { x: rect.x, y: rect.y, w: w1, h: rect.h };
+    const rectB = { x: rect.x + w1 + gap, y: rect.y, w: w2, h: rect.h };
+    return [
+      ...partition(groupA, rectA, ratios, gap, strategy),
+      ...partition(groupB, rectB, ratios, gap, strategy),
+    ];
+  } else {
+    // Top/Bottom split
+    // Weight by sum of inverse ratios (total vertical "desire")
+    const sumA = groupA.reduce((s, i) => s + (1 / ratios[i]), 0);
+    const sumB = groupB.reduce((s, i) => s + (1 / ratios[i]), 0);
+    let ratio = sumA / (sumA + sumB);
+    ratio = Math.max(0.25, Math.min(0.75, ratio));
+
+    const h1 = Math.round((rect.h - gap) * ratio);
+    const h2 = rect.h - gap - h1;
+    const rectA = { x: rect.x, y: rect.y, w: rect.w, h: h1 };
+    const rectB = { x: rect.x, y: rect.y + h1 + gap, w: rect.w, h: h2 };
+    return [
+      ...partition(groupA, rectA, ratios, gap, strategy),
+      ...partition(groupB, rectB, ratios, gap, strategy),
+    ];
+  }
+}
+
+function splitIntoTwo(indices, ratios) {
+  if (indices.length === 2) return [[indices[0]], [indices[1]]];
+
+  const sorted = [...indices].sort((a, b) => ratios[a] - ratios[b]);
+  let bestScore = Infinity;
+  let bestSplit = 1;
+
+  for (let s = 1; s < sorted.length; s++) {
+    const g1 = sorted.slice(0, s);
+    const g2 = sorted.slice(s);
+    const score = groupVariance(g1, ratios) + groupVariance(g2, ratios);
+    if (score < bestScore) {
+      bestScore = score;
+      bestSplit = s;
+    }
+  }
+  return [sorted.slice(0, bestSplit), sorted.slice(bestSplit)];
+}
+
+function groupVariance(indices, ratios) {
+  if (indices.length <= 1) return 0;
+  const vals = indices.map(i => ratios[i]);
+  const mean = vals.reduce((s, v) => s + v, 0) / vals.length;
+  return vals.reduce((s, v) => s + (v - mean) ** 2, 0);
 }
 
 /**

@@ -1,6 +1,6 @@
 <script>
-  import { Stage, Layer, Group, Rect } from 'svelte-konva';
-  import { activeSpreadLayout, spreadsStore, currentSpreadIndexStore, activePageStore, updateSlotImage, addImageToCurrentSpread } from '../../stores/spreads.js';
+  import { Stage, Layer, Group, Rect, Transformer } from 'svelte-konva';
+  import { activeSpreadLayout, spreadsStore, currentSpreadIndexStore, activePageStore, updateSlotImage, addImageToCurrentSpread, selectedSlotIdStore } from '../../stores/spreads.js';
   import { projectStore } from '../../stores/project.js';
   import { zoomStore } from '../../stores/ui.js';
   import { albumSettingsStore } from '../../stores/settings.js';
@@ -15,6 +15,28 @@
   
   $: stageWidth = (layout.totalSpreadWidthPx || 1000) * zoom;
   $: stageHeight = (layout.spreadHeightPx || 500) * zoom;
+  $: selectedId = $selectedSlotIdStore;
+
+  let transformerRef;
+
+  $: if (transformerRef && stageRef) {
+    const stage = stageRef.node;
+    if (stage) {
+      const selectedNode = selectedId ? stage.findOne(`#${selectedId}`) : null;
+      if (selectedNode) {
+        transformerRef.node.nodes([selectedNode]);
+      } else {
+        transformerRef.node.nodes([]);
+      }
+    }
+  }
+
+  function handleStageClick(e) {
+    // If click on stage (not a shape), deselect
+    if (e.target === e.target.getStage()) {
+      selectedSlotIdStore.set(null);
+    }
+  }
 
   function handleDragOver(e) {
     e.preventDefault();
@@ -79,6 +101,8 @@
       height={stageHeight}
       scaleX={zoom}
       scaleY={zoom}
+      on:click={handleStageClick}
+      on:tap={handleStageClick}
     >
       <Layer>
         <!-- Debug Border for Stage -->
@@ -101,6 +125,7 @@
             pageHeightPx={layout.pageHeightPx}
             slotsData={layout.leftPageSlots}
             margins={layout.margins}
+            pageType={layout.layoutMode === 'spread' || layout.isCover ? 'spread' : 'left'}
           />
           <KonvaPage
             x={layout.pageWidthPx + layout.spineWidthPx}
@@ -109,6 +134,7 @@
             pageHeightPx={layout.pageHeightPx}
             slotsData={layout.rightPageSlots}
             margins={layout.margins}
+            pageType={layout.layoutMode === 'spread' || layout.isCover ? 'spread' : 'right'}
           />
         {:else if layout.layoutMode === 'single'}
           <!-- Render single active page, centered -->
@@ -121,8 +147,10 @@
             pageHeightPx={layout.pageHeightPx}
             slotsData={activePageIsLeft ? layout.leftPageSlots : layout.rightPageSlots}
             margins={layout.margins}
+            pageType={activePageIsLeft ? 'left' : 'right'}
           />
         {/if}
+        <Transformer bind:this={transformerRef} />
       </Layer>
     </Stage>
   {/if}

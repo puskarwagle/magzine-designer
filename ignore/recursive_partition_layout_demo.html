@@ -1,0 +1,232 @@
+
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: transparent; }
+.root { padding: 12px 0; font-size: 13px; color: var(--color-text-primary); }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 14px; }
+.ctrl-group { display: flex; align-items: center; gap: 6px; }
+label { font-size: 12px; color: var(--color-text-secondary); }
+select, input[type=range] { font-size: 12px; }
+.btn { background: transparent; border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); padding: 5px 12px; font-size: 12px; cursor: pointer; color: var(--color-text-primary); }
+.btn:hover { background: var(--color-background-secondary); }
+.canvas-wrap { border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-md); overflow: hidden; position: relative; background: var(--color-background-secondary); }
+canvas { display: block; }
+.stats { margin-top: 8px; font-size: 11px; color: var(--color-text-secondary); display: flex; gap: 16px; flex-wrap: wrap; }
+.stat-val { color: var(--color-text-primary); font-weight: 500; }
+.ratio-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.ratio-pill { font-size: 11px; padding: 2px 8px; border-radius: 20px; background: var(--color-background-info); color: var(--color-text-info); cursor: pointer; border: 0.5px solid transparent; }
+.ratio-pill.active { border-color: var(--color-border-info); }
+</style>
+<div class="root">
+  <div class="controls">
+    <div class="ctrl-group">
+      <label>Images</label>
+      <input type="range" id="imgCount" min="1" max="9" value="4" step="1" style="width:90px">
+      <span id="imgCountLabel" style="font-size:12px;min-width:14px;color:var(--color-text-primary);font-weight:500">4</span>
+    </div>
+    <div class="ctrl-group">
+      <label>Gap</label>
+      <input type="range" id="gapSlider" min="0" max="24" value="6" step="1" style="width:70px">
+      <span id="gapLabel" style="font-size:12px;min-width:22px;color:var(--color-text-primary);font-weight:500">6px</span>
+    </div>
+    <div class="ctrl-group">
+      <label>Ratios</label>
+      <select id="ratioPreset" style="font-size:12px">
+        <option value="mixed">Mixed</option>
+        <option value="portrait">All portrait</option>
+        <option value="landscape">All landscape</option>
+        <option value="square">All square</option>
+        <option value="random">Random</option>
+      </select>
+    </div>
+    <button class="btn" onclick="regenerate()">Shuffle ↺</button>
+  </div>
+  <div class="canvas-wrap">
+    <canvas id="c" width="640" height="360"></canvas>
+  </div>
+  <div class="stats">
+    <span>Ratio error: <span class="stat-val" id="statErr">–</span></span>
+    <span>Split count: <span class="stat-val" id="statSplits">–</span></span>
+    <span>Worst slot fit: <span class="stat-val" id="statWorst">–</span></span>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+const COLORS = [
+  ['#B5D4F4','#042C53'],['#9FE1CB','#04342C'],['#F5C4B3','#4A1B0C'],
+  ['#FAC775','#412402'],['#C0DD97','#173404'],['#F4C0D1','#4B1528'],
+  ['#CECBF6','#26215C'],['#D3D1C7','#2C2C2A'],['#B5D4F4','#0C447C']
+];
+
+let images = [];
+let splitCount = 0;
+
+function getAspectRatios(preset, n) {
+  const presets = {
+    portrait:  () => 0.62 + Math.random()*0.15,
+    landscape: () => 1.4  + Math.random()*0.4,
+    square:    () => 0.9  + Math.random()*0.2,
+    mixed:     () => [0.6,0.65,0.7,1.4,1.5,1.6,1.0][Math.floor(Math.random()*7)],
+    random:    () => 0.4  + Math.random()*1.8,
+  };
+  const fn = presets[preset] || presets.mixed;
+  return Array.from({length: n}, fn);
+}
+
+function groupByRatioBalance(ratios) {
+  // Sort by ratio, split into two groups minimising total area-weighted ratio error
+  const indexed = ratios.map((r,i) => ({r,i})).sort((a,b) => a.r - b.r);
+  let bestScore = Infinity, bestSplit = 1;
+  for (let s = 1; s < indexed.length; s++) {
+    const g1 = indexed.slice(0,s).map(x=>x.r);
+    const g2 = indexed.slice(s).map(x=>x.r);
+    const med1 = g1[Math.floor(g1.length/2)];
+    const med2 = g2[Math.floor(g2.length/2)];
+    const err = g1.reduce((a,r)=>a+Math.abs(r-med1),0) + g2.reduce((a,r)=>a+Math.abs(r-med2),0);
+    if (err < bestScore) { bestScore = err; bestSplit = s; }
+  }
+  const g1 = indexed.slice(0, bestSplit).map(x=>x.i);
+  const g2 = indexed.slice(bestSplit).map(x=>x.i);
+  return [g1, g2];
+}
+
+function totalNaturalArea(indices) {
+  return indices.reduce((s,i) => s + images[i].ratio, 0);
+}
+
+function partition(indices, rect, gap) {
+  splitCount++;
+  if (indices.length === 0) return [];
+  if (indices.length === 1) {
+    return [{ imageIndex: indices[0], rect }];
+  }
+
+  const [g1, g2] = groupByRatioBalance(indices.map(i => images[i].ratio));
+
+  // Choose split direction: horizontal if rect is wide, vertical if tall
+  const useHorizontal = rect.w >= rect.h;
+
+  let splitRatio;
+  if (useHorizontal) {
+    // Split left/right: ratio of widths should match ratio of total heights needed
+    const a1 = totalNaturalArea(g1);
+    const a2 = totalNaturalArea(g2);
+    splitRatio = a1 / (a1 + a2);
+    // Clamp to avoid slivers
+    splitRatio = Math.max(0.25, Math.min(0.75, splitRatio));
+    const w1 = Math.round((rect.w - gap) * splitRatio);
+    const w2 = rect.w - gap - w1;
+    const r1 = { x: rect.x, y: rect.y, w: w1, h: rect.h };
+    const r2 = { x: rect.x + w1 + gap, y: rect.y, w: w2, h: rect.h };
+    return [...partition(g1, r1, gap), ...partition(g2, r2, gap)];
+  } else {
+    const h1ratio = g1.reduce((s,i)=>s+(1/images[i].ratio),0);
+    const h2ratio = g2.reduce((s,i)=>s+(1/images[i].ratio),0);
+    splitRatio = h1ratio / (h1ratio + h2ratio);
+    splitRatio = Math.max(0.25, Math.min(0.75, splitRatio));
+    const h1 = Math.round((rect.h - gap) * splitRatio);
+    const h2 = rect.h - gap - h1;
+    const r1 = { x: rect.x, y: rect.y, w: rect.w, h: h1 };
+    const r2 = { x: rect.x, y: rect.y + h1 + gap, w: rect.w, h: h2 };
+    return [...partition(g1, r1, gap), ...partition(g2, r2, gap)];
+  }
+}
+
+function ratioError(slotW, slotH, imgRatio) {
+  const slotRatio = slotW / slotH;
+  return Math.abs(slotRatio - imgRatio) / imgRatio;
+}
+
+function draw() {
+  const W = canvas.width, H = canvas.height;
+  const gap = parseInt(document.getElementById('gapSlider').value);
+  const margin = 12;
+
+  ctx.clearRect(0, 0, W, H);
+
+  splitCount = 0;
+  const indices = images.map((_,i)=>i);
+  const pageRect = { x: margin, y: margin, w: W - margin*2, h: H - margin*2 };
+  const slots = partition(indices, pageRect, gap);
+
+  let totalErr = 0, worstErr = 0;
+  slots.forEach(({ imageIndex, rect }) => {
+    const img = images[imageIndex];
+    const [bg, fg] = COLORS[imageIndex % COLORS.length];
+    ctx.fillStyle = bg;
+    const r = 4;
+    ctx.beginPath();
+    ctx.roundRect(rect.x, rect.y, rect.w, rect.h, r);
+    ctx.fill();
+
+    // Draw "image" as crosshatch to suggest photo
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(rect.x, rect.y, rect.w, rect.h, r);
+    ctx.clip();
+
+    // Subtle diagonal lines
+    ctx.strokeStyle = fg;
+    ctx.globalAlpha = 0.06;
+    ctx.lineWidth = 1;
+    for (let d = -rect.h; d < rect.w + rect.h; d += 18) {
+      ctx.beginPath();
+      ctx.moveTo(rect.x + d, rect.y);
+      ctx.lineTo(rect.x + d + rect.h, rect.y + rect.h);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+
+    // Ratio label
+    const slotRatio = rect.w / rect.h;
+    const err = ratioError(rect.w, rect.h, img.ratio);
+    totalErr += err;
+    worstErr = Math.max(worstErr, err);
+
+    ctx.fillStyle = fg;
+    ctx.font = '500 11px "Anthropic Sans", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    const label = `${img.ratio.toFixed(2)}`;
+    const cx = rect.x + rect.w/2;
+    const cy = rect.y + rect.h/2;
+    if (rect.w > 40 && rect.h > 24) {
+      ctx.fillText(label, cx, cy - 7);
+      ctx.font = '400 10px "Anthropic Sans", sans-serif';
+      ctx.globalAlpha = 0.55;
+      ctx.fillText(`${rect.w}×${rect.h}`, cx, cy + 7);
+      ctx.globalAlpha = 1;
+    }
+  });
+
+  const avgErr = totalErr / slots.length;
+  document.getElementById('statErr').textContent = (avgErr * 100).toFixed(1) + '%';
+  document.getElementById('statSplits').textContent = splitCount;
+  document.getElementById('statWorst').textContent = (worstErr * 100).toFixed(1) + '%';
+}
+
+function regenerate() {
+  const n = parseInt(document.getElementById('imgCount').value);
+  const preset = document.getElementById('ratioPreset').value;
+  const ratios = getAspectRatios(preset, n);
+  images = ratios.map(r => ({ ratio: r }));
+  draw();
+}
+
+document.getElementById('imgCount').oninput = function() {
+  document.getElementById('imgCountLabel').textContent = this.value;
+  regenerate();
+};
+document.getElementById('gapSlider').oninput = function() {
+  document.getElementById('gapLabel').textContent = this.value + 'px';
+  draw();
+};
+document.getElementById('ratioPreset').onchange = regenerate;
+
+regenerate();
+</script>

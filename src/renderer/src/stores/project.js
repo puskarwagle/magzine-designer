@@ -37,7 +37,6 @@ export const addImagesToProject = (newFolderData) => {
   });
 };
 
-export const presetsStore = writable([]);
 
 export async function initProject() {
   // Load saved folder
@@ -48,16 +47,4 @@ export async function initProject() {
       addImagesToProject(result);
     }
   }
-
-  // Load presets
-  if (window.api && window.api.getLayoutPresets) {
-    const presets = await window.api.getLayoutPresets();
-    if (presets) {
-      presetsStore.set(presets);
-      LayoutEngine.loadPresetsFromData(presets);
-    }
-  }
 }
-
-// Keep initPresets for compatibility but prefer initProject
-export const initPresets = initProject;

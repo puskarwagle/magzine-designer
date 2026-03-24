@@ -5,6 +5,10 @@
   export let imageRect; // { x, y, w, h } relative to slot
   export let imageData;
   export let slotInfo;
+  export let pageType;
+  export let isLeftPage;
+
+  import { selectedSlotIdStore, currentSpreadIndexStore, updateSlotGeometryInPixels } from '../../stores/spreads.js';
 
   let imageObj = null;
 
@@ -16,6 +20,34 @@
     };
   } else {
     imageObj = null;
+  }
+
+  $: isSelected = $selectedSlotIdStore === imageData?.id;
+
+  function handleSelect(e) {
+    e.cancelBubble = true; // Prevent stage click from deselecting
+    selectedSlotIdStore.set(imageData?.id);
+  }
+
+  function handleInteractionEnd(e) {
+    const node = e.target;
+    // We want to capture the transformed dimensions
+    const pixelGeo = {
+      x: node.x(),
+      y: node.y(),
+      w: node.width() * node.scaleX(),
+      h: node.height() * node.scaleY()
+    };
+
+    // Reset scale to 1 and apply to width/height to keep it simple for the next render
+    node.setAttrs({
+      scaleX: 1,
+      scaleY: 1,
+      width: pixelGeo.w,
+      height: pixelGeo.h
+    });
+
+    updateSlotGeometryInPixels($currentSpreadIndexStore, pageType, isLeftPage, imageData.id, pixelGeo);
   }
 </script>
 
@@ -31,6 +63,11 @@
   rotation={slotInfo?.rotation || 0}
   name="image-slot"
   id={imageData?.id}
+  draggable={true}
+  on:click={handleSelect}
+  on:tap={handleSelect}
+  on:dragend={handleInteractionEnd}
+  on:transformend={handleInteractionEnd}
 >
   <!-- Background -->
   <Rect
