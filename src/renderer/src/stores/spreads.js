@@ -8,9 +8,12 @@ function createDefaultSpread(type = 'spread') {
   return {
     id: Date.now() + Math.random(),
     type: type, // 'single' or 'spread'
-    leftPage: { imageIds: [], currentPresetIndex: 0, customSlots: {} },
-    rightPage: { imageIds: [], currentPresetIndex: 0, customSlots: {} },
-    spreadPage: { imageIds: [], currentPresetIndex: 0, customSlots: {} },
+    imageIds: [],
+    currentPresetIndex: 0,
+    pageAssignments: {}, // { [imageId]: 'left' | 'right' }
+    leftPage: { customSlots: {} },
+    rightPage: { customSlots: {} },
+    spreadPage: { customSlots: {} },
     useCustomMargins: false,
     margins: { top: 0.5, bottom: 0.5, inner: 0.5, outer: 0.5 }
   };
@@ -37,14 +40,8 @@ export const usedImageIdsStore = derived(spreadsStore, ($spreads) => {
   if (!$spreads) return ids;
   
   $spreads.forEach(spread => {
-    if (spread.leftPage?.imageIds) {
-      spread.leftPage.imageIds.forEach(id => ids.add(id));
-    }
-    if (spread.rightPage?.imageIds) {
-      spread.rightPage.imageIds.forEach(id => ids.add(id));
-    }
-    if (spread.spreadPage?.imageIds) {
-      spread.spreadPage.imageIds.forEach(id => ids.add(id));
+    if (spread.imageIds) {
+      spread.imageIds.forEach(id => ids.add(id));
     }
   });
   return ids;
@@ -55,18 +52,27 @@ export const usedImageIdsStore = derived(spreadsStore, ($spreads) => {
  */
 export function isSpreadPopulated(spread) {
   if (!spread) return false;
-  return (
-    spread.leftPage.imageIds.length > 0 ||
-    spread.rightPage.imageIds.length > 0 ||
-    spread.spreadPage.imageIds.length > 0
-  );
+  return spread.imageIds.length > 0;
 }
 
 /**
  * Adds a new spread or single page to the album.
  */
 export function addSpread(type = 'spread') {
-  spreadsStore.update(s => [...s, createDefaultSpread(type)]);
+  spreadsStore.update(s => {
+    // Logic: 2 pages make 1 spread. 
+    // If adding a 'single' page and the last entry is also a 'single' page, 
+    // we just "complete" the last spread instead of adding a new entry.
+    if (type === 'single' && s.length > 0) {
+      const last = s[s.length - 1];
+      if (last.type === 'single') {
+        const updated = [...s];
+        updated[updated.length - 1] = { ...last, type: 'spread' };
+        return updated;
+      }
+    }
+    return [...s, createDefaultSpread(type)];
+  });
   const currentSpreads = get(spreadsStore);
   currentSpreadIndexStore.set(currentSpreads.length - 1);
 }
@@ -121,22 +127,21 @@ export function updateSlotImage(spreadIndex, pageType, oldImageId, newImageId) {
     const spread = { ...spreads[spreadIndex] };
     if (!spread) return $spreads;
 
-    const updatePage = (pageState) => {
-      const index = pageState.imageIds.indexOf(oldImageId);
-      if (index !== -1) {
-        const newIds = [...pageState.imageIds];
-        newIds[index] = newImageId;
-        return { ...pageState, imageIds: newIds };
+    const index = spread.imageIds.indexOf(oldImageId);
+    if (index !== -1) {
+      const newIds = [...spread.imageIds];
+      newIds[index] = newImageId;
+      spread.imageIds = newIds;
+      
+      // Preserve assignment
+      if (spread.pageAssignments[oldImageId]) {
+        spread.pageAssignments[newImageId] = spread.pageAssignments[oldImageId];
+        delete spread.pageAssignments[oldImageId];
       }
-      return pageState;
-    };
-
-    if (pageType === 'left') spread.leftPage = updatePage(spread.leftPage);
-    else if (pageType === 'right') spread.rightPage = updatePage(spread.rightPage);
-    else if (pageType === 'spread') spread.spreadPage = updatePage(spread.spreadPage);
+    }
 
     spreads[spreadIndex] = spread;
-    return [...spreads];
+    return spreads;
   });
 }
 
@@ -149,18 +154,19 @@ export function updateSlotGeometry(spreadIndex, pageType, imageId, newGeo) {
     const spread = { ...spreads[spreadIndex] };
     if (!spread) return $spreads;
 
-    const updatePage = (pageState) => {
-      const customSlots = { ...(pageState.customSlots || {}) };
-      customSlots[imageId] = { ...newGeo };
-      return { ...pageState, customSlots };
+    // Use pageType logic to decide which customSlots bucket to use
+    const targetPage = pageType === 'spread' ? 'spreadPage' : (pageType === 'left' ? 'leftPage' : 'rightPage');
+    
+    spread[targetPage] = {
+      ...spread[targetPage],
+      customSlots: {
+        ...(spread[targetPage].customSlots || {}),
+        [imageId]: { ...newGeo }
+      }
     };
 
-    if (pageType === 'left') spread.leftPage = updatePage(spread.leftPage);
-    else if (pageType === 'right') spread.rightPage = updatePage(spread.rightPage);
-    else if (pageType === 'spread') spread.spreadPage = updatePage(spread.spreadPage);
-
     spreads[spreadIndex] = spread;
-    return [...spreads];
+    return spreads;
   });
 }
 
@@ -203,41 +209,31 @@ export function updateSlotGeometryInPixels(spreadIndex, pageType, isLeftPage, im
  * Adds an image to the current spread/page.
  */
 export function addImageToCurrentSpread(imageId) {
-  console.log('addImageToCurrentSpread called with:', imageId);
   const spreadIndex = get(currentSpreadIndexStore);
   const layoutMode = get(layoutModeStore);
   const activePage = get(activePageStore);
   
   spreadsStore.update($spreads => {
-    console.log('Current spreads count:', $spreads.length, 'Index:', spreadIndex);
     const spreads = [...$spreads];
     const spread = { ...spreads[spreadIndex] };
-    if (!spread) {
-      console.error('No spread found at index:', spreadIndex);
-      return $spreads;
+    if (!spread) return $spreads;
+
+    // Avoid duplicate image IDs in the same spread pool
+    if (spread.imageIds.includes(imageId)) return $spreads;
+
+    spread.imageIds = [...spread.imageIds, imageId];
+    
+    // Assign to active page if in single mode
+    if (layoutMode === 'single') {
+      spread.pageAssignments[imageId] = activePage;
+    } else {
+      // In spread mode, we could try to guess based on position, but for now 
+      // let's just leave it unassigned (or assigned to 'left' by default)
+      spread.pageAssignments[imageId] = 'left';
     }
 
-    const pageType = layoutMode === 'spread' ? 'spread' : activePage;
-    console.log('Adding to pageType:', pageType);
-
-    const addToPage = (pageState) => {
-      // Avoid duplicate image IDs in the same page/spread
-      if (pageState.imageIds.includes(imageId)) {
-        console.log('Image already in page, skipping add:', imageId);
-        return pageState;
-      }
-      const newImageIds = [...pageState.imageIds, imageId];
-      return LayoutEngine.updatePageImages(pageState, newImageIds);
-    };
-
-    if (pageType === 'left') spread.leftPage = addToPage(spread.leftPage);
-    else if (pageType === 'right') spread.rightPage = addToPage(spread.rightPage);
-    else if (pageType === 'spread') spread.spreadPage = addToPage(spread.spreadPage);
-
     spreads[spreadIndex] = spread;
-    const result = [...spreads];
-    console.log('New image IDs for', pageType, ':', spread[pageType + (pageType === 'spread' ? 'Page' : 'Page')].imageIds);
-    return result;
+    return spreads;
   });
 }
 
@@ -246,58 +242,51 @@ export function addImageToCurrentSpread(imageId) {
  * Maintains the original number of images in each page/spread location.
  */
 export function shuffleAllImages() {
-  const layoutMode = get(layoutModeStore);
-  
   spreadsStore.update($spreads => {
-    const allImageIds = [];
-    const targetLocations = []; // Array of { spreadIndex, pageKey, slotIndex }
+    let allImages = [];
+    const spreadStructures = [];
 
-    // 1. Collect all "active" image IDs across all spreads
-    $spreads.forEach((spread, spreadIndex) => {
-      const isEntrySingle = spread.type === 'single';
-      
-      const collectFromPage = (pageKey) => {
-        const pageState = spread[pageKey];
-        if (pageState && pageState.imageIds) {
-          pageState.imageIds.forEach((id, slotIndex) => {
-            allImageIds.push(id);
-            targetLocations.push({ spreadIndex, pageKey, slotIndex });
-          });
-        }
-      };
-
-      if (layoutMode === 'spread' && !isEntrySingle) {
-        collectFromPage('spreadPage');
-      } else {
-        collectFromPage('leftPage');
-        if (!isEntrySingle) {
-          collectFromPage('rightPage');
-        }
-      }
+    // 1. Collect all images and remember where they came from
+    $spreads.forEach(spread => {
+      allImages.push(...spread.imageIds);
+      spreadStructures.push({
+        origCount: spread.imageIds.length,
+        origAssignments: { ...spread.pageAssignments }
+      });
     });
 
-    if (allImageIds.length <= 1) return $spreads;
+    if (allImages.length <= 1) return $spreads;
 
-    // 2. Fisher-Yates shuffle the collected image IDs
-    for (let i = allImageIds.length - 1; i > 0; i--) {
+    // 2. Shuffle
+    for (let i = allImages.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      [allImageIds[i], allImageIds[j]] = [allImageIds[j], allImageIds[i]];
+      [allImages[i], allImages[j]] = [allImages[j], allImages[i]];
     }
 
-    // 3. Redistribute shuffled IDs back to the same positions
-    // Create a new array of spreads to ensure reactivity
-    const newSpreads = $spreads.map(spread => ({
-      ...spread,
-      leftPage: { ...spread.leftPage, imageIds: [...spread.leftPage.imageIds] },
-      rightPage: { ...spread.rightPage, imageIds: [...spread.rightPage.imageIds] },
-      spreadPage: { ...spread.spreadPage, imageIds: [...spread.spreadPage.imageIds] }
-    }));
+    // 3. Redistribute
+    let offset = 0;
+    return $spreads.map((spread, i) => {
+      const count = spreadStructures[i].origCount;
+      const newIds = allImages.slice(offset, offset + count);
+      offset += count;
+      
+      // We keep the imageIds top-level. 
+      // Assignments: For simplicity, keep original assignments for the slots, 
+      // but mapped to new IDs if we want to be fancy. 
+      // A better way is to just keep the same assignment structure.
+      const newAssignments = {};
+      newIds.forEach((id, idx) => {
+        // Reuse assignment of the image that was at this index before
+        const oldId = spread.imageIds[idx];
+        newAssignments[id] = spread.pageAssignments[oldId] || 'left';
+      });
 
-    targetLocations.forEach((loc, i) => {
-      newSpreads[loc.spreadIndex][loc.pageKey].imageIds[loc.slotIndex] = allImageIds[i];
+      return {
+        ...spread,
+        imageIds: newIds,
+        pageAssignments: newAssignments
+      };
     });
-
-    return newSpreads;
   });
 }
 
@@ -397,9 +386,32 @@ export const activeSpreadLayout = derived(
         rightPageMarginBox
       };
 
+      // Prepare states for LayoutEngine
+      const leftImageIds = spread.imageIds.filter(id => spread.pageAssignments[id] === 'left');
+      const rightImageIds = spread.imageIds.filter(id => spread.pageAssignments[id] === 'right');
+      
+      // If none are assigned, put all on left by default to avoid empty pages if data is old
+      const effectiveLeftIds = (leftImageIds.length === 0 && rightImageIds.length === 0) ? spread.imageIds : leftImageIds;
+      const effectiveRightIds = rightImageIds;
+
+      const spreadState = {
+        imageIds: spread.imageIds,
+        currentPresetIndex: spread.currentPresetIndex
+      };
+      
+      const leftPageState = {
+        imageIds: effectiveLeftIds,
+        currentPresetIndex: spread.leftPage.currentPresetIndex || spread.currentPresetIndex
+      };
+      
+      const rightPageState = {
+        imageIds: effectiveRightIds,
+        currentPresetIndex: spread.rightPage.currentPresetIndex || spread.currentPresetIndex
+      };
+
       if ($layoutMode === 'spread' && !isEntrySingle) {
         layoutData.slots = LayoutEngine.applyPresetToSpread({
-          spreadState: spread.spreadPage,
+          spreadState,
           images: $project.images || [],
           margins: margins,
           spreadWidthPx: totalSpreadWidthPx,
@@ -416,10 +428,8 @@ export const activeSpreadLayout = derived(
         for (const slot of layoutData.slots) {
           const slotCenterX = slot.slotRect.x + slot.slotRect.w / 2;
           if (slotCenterX < rightPageStartX) {
-            // Slot belongs to left page — coordinates are already relative
             leftSlots.push(slot);
           } else {
-            // Slot belongs to right page — adjust x to be relative to right page
             rightSlots.push({
               ...slot,
               slotRect: {
@@ -433,7 +443,7 @@ export const activeSpreadLayout = derived(
         layoutData.rightPageSlots = rightSlots;
       } else {
         const leftSlots = LayoutEngine.applyPresetToPage({
-          pageState: spread.leftPage,
+          pageState: leftPageState,
           images: $project.images || [],
           margins: margins,
           pageWidthPx,
@@ -445,7 +455,7 @@ export const activeSpreadLayout = derived(
         });
 
         const rightSlots = isEntrySingle ? [] : LayoutEngine.applyPresetToPage({
-          pageState: spread.rightPage,
+          pageState: rightPageState,
           images: $project.images || [],
           margins: margins,
           pageWidthPx,
@@ -460,8 +470,6 @@ export const activeSpreadLayout = derived(
         layoutData.rightPageSlots = rightSlots;
 
         if (effectivelySingle) {
-          // If the entry is single, we use leftSlots. 
-          // If mode is single, we use activePageSlots.
           layoutData.slots = (isEntrySingle || $activePage === 'left') ? leftSlots : rightSlots;
         }
       }

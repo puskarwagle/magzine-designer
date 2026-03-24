@@ -28,13 +28,18 @@
       if (!spread) return spreads;
 
       if (layoutMode === 'spread') {
-        spread.spreadPage = LayoutEngine.nextPreset(spread.spreadPage);
+        // Next preset for the whole spread pool
+        const presets = LayoutEngine.getSpreadPresetsForCount(spread.imageIds.length);
+        spread.currentPresetIndex = (spread.currentPresetIndex + 1) % presets.length;
       } else {
-        if (activePage === 'left') {
-          spread.leftPage = LayoutEngine.nextPreset(spread.leftPage);
-        } else {
-          spread.rightPage = LayoutEngine.nextPreset(spread.rightPage);
-        }
+        // Next preset for the active page's subset
+        const pageKey = activePage === 'left' ? 'leftPage' : 'rightPage';
+        const pageImageIds = spread.imageIds.filter(id => spread.pageAssignments[id] === (activePage === 'left' ? 'left' : 'right'));
+        const presets = LayoutEngine.getPresetsForCount(pageImageIds.length);
+        
+        // Ensure the sub-page state has a preset index
+        if (spread[pageKey].currentPresetIndex === undefined) spread[pageKey].currentPresetIndex = 0;
+        spread[pageKey].currentPresetIndex = (spread[pageKey].currentPresetIndex + 1) % presets.length;
       }
       return [...spreads];
     });
@@ -53,6 +58,8 @@
   }
 
   function handleAdd() {
+    // Always add a "page" if in single mode, or a "spread" if in spread mode.
+    // addSpread logic now handles the "2 pages = 1 spread" conversion.
     addSpread(layoutMode === 'single' ? 'single' : 'spread');
   }
 
