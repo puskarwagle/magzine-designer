@@ -20,6 +20,7 @@
   }
 
   function handleImageClick(img) {
+    console.log('Thumbnail clicked:', img.id);
     addImageToCurrentSpread(img.id);
   }
 

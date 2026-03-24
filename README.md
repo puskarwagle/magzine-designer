@@ -1,217 +1,104 @@
-# Album Layout Electron App (Svelte + Vite)
+# Sampat: Professional Album Layout Engine
 
 ## Project Overview
+Sampat is a high-performance Electron desktop application for designing professional photo albums. It uses a **Data-Driven UI** architecture where a centralized reactive state (Svelte 5) drives a stateless geometry engine to render pixel-perfect layouts on an HTML5 Canvas (Konva.js).
 
-This is a professional Electron desktop application designed for designing high-quality photo albums. It leverages **Svelte 5** and **Vite** to provide a highly reactive, modular, and maintainable workspace.
+The app supports precise physical dimensions (Inches/CM), high-DPI rendering (300 DPI default), automatic layout mapping via priority-based presets, and a sophisticated zoom/pan engine for high-resolution inspection.
 
-The application allows users to:
-- Select and manage folders of high-resolution images.
-- Configure precise physical album dimensions (Inches or Centimeters).
-- Manage global and per-spread margins, safe zones, and spine/gutter calculations.
-- Lay out images using a robust **Layout Preset Engine** that maps photos to optimized slots.
-- **Advanced Preview Engine**: Auto-fit to screen, Pinch-to-zoom, and pixel-perfect 100% viewing modes.
-- Toggle between single-page and cross-gutter spread layout modes.
-- **Two-Column Sidebar UI**: A left-aligned icon navigation menu maximizing vertical space for panel content with hover tooltips.
+---
 
-## Tech Stack
-
-- **Framework:** [Svelte 5](https://svelte.dev/) (Legacy/Runes hybrid migration state)
-- **Rendering:** [Konva.js](https://konvajs.org/) via `svelte-konva` for 2D Canvas rendering
-- **Build Tool:** [Vite](https://vitejs.dev/)
-- **Environment:** [Electron](https://www.electronjs.org/)
-- **Styling:** Vanilla CSS (Modularized within Svelte components)
-- **Testing:** [Vitest](https://vitest.dev/)
-- **Language:** JavaScript (ES6+ ESM)
-
-## Core Architecture
-
-The project follows a clean separation of concerns across the Electron processes:
-
-### 1. Main Process (`src/main/`)
-The "backend" of the app. It handles:
-- Window lifecycle management.
-- Native OS dialogs (folder picking).
-- Filesystem operations via IPC handlers.
-- **`presets.json`**: External source of truth for layout configurations.
-
-#### Inter-Process Communication (IPC)
-IPC is handled via a preload script, exposing a secure API to the renderer process.
-
-**`src/main/ipcHandlers.js`**
-This file defines the backend logic for IPC calls.
-```javascript
-// src/main/ipcHandlers.js
-
-import { ipcMain, dialog } from 'electron';
-import fs from 'fs-extra';
-import path from 'path';
-// ... other imports
-
-export function registerIpcHandlers() {
-  ipcMain.handle('get-images-in-folder', async (event, folderPath) => {
-    // ... logic to get images
-  });
-
-  ipcMain.handle('get-presets', async () => {
-    const presetsPath = path.join(app.getAppPath(), 'presets.json');
-    const presets = await fs.readJson(presetsPath);
-    return presets;
-  });
-}
+## 📂 Project Structure
+```text
+sampat/
+├── src/
+│   ├── main/                 # Electron Main Process (Node.js)
+│   │   ├── main.js           # Window & Lifecycle management
+│   │   └── ipcHandlers.js    # Native Bridge (Filesystem, Dialogs)
+│   ├── preload/              # Security Bridge (Context Isolation)
+│   │   └── preload.js        # Exposed API for the Frontend
+│   └── renderer/             # Svelte 5 Frontend
+│       ├── src/
+│       │   ├── assets/       # Global CSS & Static Icons
+│       │   ├── components/   # UI Modules
+│       │   │   ├── preview/  # Canvas Engine (Konva.js)
+│       │   │   ├── sidebar/  # Functional Panels (Folder, Layout, etc.)
+│       │   │   └── ui/       # Shared UI Components
+│       │   ├── lib/          # Pure Logic & Engines
+│       │   │   ├── layoutEngine.js # Geometry & Preset Mapping
+│       │   │   └── utils.js        # Unit Conversions (px/in/cm)
+│       │   ├── stores/       # Reactive State (Svelte Stores)
+│       │   │   ├── project.js    # Image Pool & Global Settings
+│       │   │   ├── spreads.js    # THE BRAIN (Layout Calculations)
+│       │   │   └── ui.js         # Viewport & UI State
+│       │   └── main.js       # App Entry Point
+├── presets.json              # Source of Truth for Layout Presets
+└── vitest.config.js          # Testing Configuration
 ```
 
-**`src/preload/preload.js`**
-The preload script securely exposes the IPC functionality to the renderer.
-```javascript
-// src/preload/preload.js
-import { contextBridge, ipcRenderer } from 'electron';
+---
 
-contextBridge.exposeInMainWorld('api', {
-  getImagesInFolder: (folderPath) => ipcRenderer.invoke('get-images-in-folder', folderPath),
-  getPresets: () => ipcRenderer.invoke('get-presets'),
-});
-```
+## 🏆 Top 10 Important Files (The "Developer's Map")
 
+If you are an AI agent or a developer looking to fix or extend this app, start here:
 
-### 2. Preload Bridge (`src/preload/`)
-- **`preload.js`**: A secure bridge that exposes a limited `window.api` to the frontend.
+1.  **`src/renderer/src/stores/spreads.js` (The Brain)**  
+    Contains the `activeSpreadLayout` derived store. It listens to project settings and spread data, then triggers the `layoutEngine` to recalculate all coordinates. **Look here for state management of pages and slots.**
 
-### 3. Renderer Process (`src/renderer/`)
-The modern Svelte frontend, located in `src/renderer/src/`.
+2.  **`src/renderer/src/lib/layoutEngine.js` (Geometry Logic)**  
+    The stateless engine that does the math. It takes raw spread data and maps it to the `presets.json` slots. **Look here to change how images are positioned or how presets are applied.**
 
-#### **Data-Driven UI Pattern (The "Brain")**
-The app's rendering architecture is designed for high performance and clear separation of concerns, centered around a powerful derived store.
+3.  **`src/renderer/src/components/preview/PreviewArea.svelte` (Zoom & Viewport)**  
+    Manages the workspace "camera." It handles pinch-to-zoom, auto-fit logic, and keeps the CSS page and Konva canvas synchronized. **Look here for viewport, panning, or zoom-to-focus bugs.**
 
-1.  **`activeSpreadLayout` (The Brain):** This is a centralized Svelte derived store located in `src/renderer/src/stores/spreads.js`. It is the **single source of truth for all rendering coordinates**. It listens to multiple other stores (project settings, UI state, spread data) and, whenever any of them change, it re-runs all calculations by passing the raw data to the stateless `layoutEngine.js`. The final output is a complete, pixel-perfect description of the entire spread, including page dimensions, margins, and an array of image slots with their exact coordinates and sizes.
+4.  **`src/renderer/src/components/preview/KonvaStage.svelte` (Canvas Entry)**  
+    The bridge between Svelte and Konva.js. It handles high-level canvas events like drag-and-drop image placement and renders the spread layers. **Look here for canvas interaction logic.**
 
-    **`src/renderer/src/stores/spreads.js`**
-    ```javascript
-    // src/renderer/src/stores/spreads.js
-    import { derived } from 'svelte/store';
-    import { project } from './project.js';
-    import { ui } from './ui.js';
-    import { layoutEngine } from '../lib/layoutEngine.js';
+5.  **`src/renderer/src/lib/utils.js` (The Ruler)**  
+    The single source of truth for physical-to-pixel conversions (`toPixels`). It ensures that 12 inches is exactly 3600 pixels at 300 DPI across the entire app. **Look here for unit or dimension issues.**
 
-    export const activeSpreadLayout = derived(
-      [project, ui],
-      ([$project, $ui]) => {
-        if (!$project.activeSpread) return null;
+6.  **`src/main/ipcHandlers.js` (Native Bridge)**  
+    Handles filesystem access (loading images from folders) and reading the `presets.json`. **Look here if images aren't loading or the app can't talk to the OS.**
 
-        const layoutInput = {
-          // ... map state from $project and $ui to layoutEngine input
-        };
+7.  **`src/renderer/src/stores/project.js` (Asset Manager)**  
+    Manages the global image pool and project initialization. It tracks which images are "used" vs. "unused." **Look here for image library state.**
 
-        return layoutEngine.calculateLayout(layoutInput);
-      }
-    );
-    ```
+8.  **`src/renderer/src/components/sidebar/FolderPanel.svelte` (Image UI)**  
+    The sidebar panel for the image library. Includes sophisticated "dynamic expansion" logic for handling folders with hundreds of high-res images without crashing. **Look here for image UI bugs.**
 
-2.  **`Konva.js` (The "Muscle"):** The UI follows a "Dumb Component" pattern. The preview area uses `svelte-konva` to render the album spread on an HTML5 Canvas.
-    - **`KonvaStage.svelte`**: This component receives the fully-calculated layout object from the `activeSpreadLayout` store.
-    - **`KonvaSlot.svelte`**: The stage iterates over the slots from the layout object, passing the pre-calculated coordinates (`x`, `y`, `width`, `height`) and image data to this component. `KonvaSlot` is a "dumb" component responsible only for drawing a rectangle and an image onto the canvas at the position it was given.
+9.  **`presets.json` (Layout Definitions)**  
+    A JSON file defining normalized (0.0 to 1.0) coordinates for every layout. **Look here to add new layout templates.**
 
-This architecture ensures that Svelte's reactivity is used for efficient state management and calculation, while the performance-critical rendering of potentially hundreds of shapes is offloaded to the highly optimized Konva.js canvas library. The components themselves contain minimal logic.
+10. **`src/renderer/src/stores/ui.js` (UI State)**  
+    Tracks the active panel, sidebar expansion, and the `zoomStore`. **Look here for general UI/UX behavior changes.**
 
-#### **Folder Structure**
-- **`components/`**: Modular UI components.
-    - **`preview/`**: The core canvas engine (`PreviewArea.svelte`, `KonvaStage.svelte`, `KonvaSlot.svelte`).
-    - **`sidebar/`**: Interaction panels (`SizePanel`, `LayoutPanel`, etc.).
-    - **`rulers/`**: Dynamic measurement tools.
-- **`stores/`**: Centralized state management:
-    - `project.js`: Image pool, folder paths, and external preset initialization.
-    - `spreads.js`: Album spread data and the **`activeSpreadLayout`** derived logic.
-    - `ui.js`: Sidebar state and **Zoom Engine** state (zoom level, auto-fit toggles).
-- **`lib/`**: Pure logic and utilities.
-    - **`layoutEngine.js`**: Stateless engine for geometry, validation, and preset mapping.
-    - **`utils.js`**: **Single source of truth** for `toPixels` and unit conversion.
-    - **`undo.js`**: Decoupled, generic undo/redo state management.
+---
 
-## The Layout Preset System
+## 🛠 Tech Stack
+- **Electron**: Desktop environment.
+- **Svelte 5**: Modern reactive UI (transitioning to Runes).
+- **Konva.js**: High-performance 2D Canvas rendering via `svelte-konva`.
+- **Vite**: Ultra-fast build tool and dev server.
+- **Vitest**: Unit and component testing.
 
-The application uses an externalized normalization system:
-1. **External Loading**: Presets are loaded from `presets.json` via IPC on application mount.
-2. **Slots**: Defined in normalized coordinates (0.0 to 1.0) relative to the margin box.
-3. **Priorities**: Each slot has a priority used for automatic image mapping.
-4. **Generic Fallback**: If no matching preset is found for an image count, the engine dynamically generates a grid.
+---
 
-**`presets.json`**
-This file contains an array of layout presets. Each preset defines the number of images it's for and the layout of slots.
-```json
-[
-  {
-    "name": "2-up Landscape",
-    "imageCount": 2,
-    "slots": [
-      { "x": 0, "y": 0, "width": 0.48, "height": 1, "priority": 1 },
-      { "x": 0.52, "y": 0, "width": 0.48, "height": 1, "priority": 2 }
-    ]
-  },
-  {
-    "name": "3-up Portrait",
-    "imageCount": 3,
-    "slots": [
-        { "x": 0, "y": 0, "width": 0.32, "height": 1, "priority": 1 },
-        { "x": 0.34, "y": 0, "width": 0.32, "height": 1, "priority": 2 },
-        { "x": 0.68, "y": 0, "width": 0.32, "height": 1, "priority": 3 }
-    ]
-  }
-]
-```
+## 💡 Developer Workflows & AI Tips
 
-## Physical-to-Pixel Conversion
+### How to change the Layout?
+Do not modify the components. Instead, modify `layoutEngine.js` or the `presets.json`. The UI will automatically react to the data changes via the `activeSpreadLayout` store.
 
-Accuracy is critical for print-ready albums.
-- **Physical Units**: User enters `12in x 12in`.
-- **DPI**: System defaults to 300 DPI (configurable).
-- **Pixel Canvas**: Calculated as `(units * DPI)`.
-- **Zoom Engine**: 
-    - **Auto-Fit**: Automatically scales the canvas to fit the viewport while accounting for 24px rulers and workspace padding.
-    - **Pinch-to-Zoom**: Intuitive trackpad and wheel gestures for inspection.
-    - **Smart Centering**: Automatically switches from flex-centering to top-left scrolling when the canvas exceeds the viewport size.
+### How to fix Zoom/Pan issues?
+Check `PreviewArea.svelte`. The app uses a complex "auto-fit" system that balances CSS centering with Konva scaling. The `ui.js` store holds the raw zoom values, but `PreviewArea` handles the gesture interpretation.
 
-The conversion logic is centralized in `utils.js`.
+### Adding a New Sidebar Panel?
+1. Create a component in `src/renderer/src/components/sidebar/panels/`.
+2. Add a new `View` type in `src/renderer/src/stores/ui.js`.
+3. Update `SidebarNav.svelte` and `Sidebar.svelte` to include the new icon and panel mapping.
 
-**`src/renderer/src/lib/utils.js`**
-```javascript
-// src/renderer/src/lib/utils.js
+---
 
-export const CM_TO_IN = 1 / 2.54;
-
-export function toPixels(value, unit, dpi) {
-  if (unit === 'in') {
-    return value * dpi;
-  }
-  if (unit === 'cm') {
-    return value * CM_TO_IN * dpi;
-  }
-  if (unit === 'px') {
-    return value;
-  }
-  return 0;
-}
-```
-
-## Developer Commands
-
-### Installation
-```bash
-npm install
-```
-
-### Development
-Starts the Vite dev server and launches Electron:
-```bash
-npm run dev
-```
-
-### Building
-Compiles the Svelte app and packages the Electron binary:
-```bash
-npm run build
-```
-
-### Testing
-Runs the Vitest suite for logic and component validation:
-```bash
-npm test
-```
+## 🚀 Commands
+- `npm install`: Setup dependencies.
+- `npm run dev`: Launch the app in development mode.
+- `npm run test`: Run the full test suite.
+- `npm run build`: Package the app for distribution.

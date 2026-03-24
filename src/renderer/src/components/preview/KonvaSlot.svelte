@@ -20,54 +20,64 @@
 </script>
 
 <Group
-  config={{
-    x: slotRect.x,
-    y: slotRect.y,
-    width: slotRect.w,
-    height: slotRect.h,
-    clipX: 0,
-    clipY: 0,
-    clipWidth: slotRect.w,
-    clipHeight: slotRect.h,
-    rotation: slotInfo?.rotation || 0,
-    name: 'image-slot',
-    id: imageData?.id
-  }}
+  x={slotRect.x}
+  y={slotRect.y}
+  width={slotRect.w}
+  height={slotRect.h}
+  clipX={0}
+  clipY={0}
+  clipWidth={slotRect.w}
+  clipHeight={slotRect.h}
+  rotation={slotInfo?.rotation || 0}
+  name="image-slot"
+  id={imageData?.id}
 >
-  <!-- Debug Background -->
+  <!-- Background -->
   <Rect
-    config={{
-      x: 0,
-      y: 0,
-      width: slotRect.w,
-      height: slotRect.h,
-      fill: '#f1f5f9',
-      stroke: '#3b82f6',
-      strokeWidth: 2
-    }}
+    x={0}
+    y={0}
+    width={slotRect.w}
+    height={slotRect.h}
+    fill="#f1f5f9"
   />
 
   {#if imageObj}
     <Image
-      config={{
-        image: imageObj,
-        x: imageRect.x,
-        y: imageRect.y,
-        width: imageRect.w,
-        height: imageRect.h
-      }}
+      image={imageObj}
+      x={imageRect.x}
+      y={imageRect.y}
+      width={imageRect.w}
+      height={imageRect.h}
+    />
+    <!-- Visual Cue: Blue border for images -->
+    <Rect
+      x={0}
+      y={0}
+      width={slotRect.w}
+      height={slotRect.h}
+      stroke="#3b82f6"
+      strokeWidth={4}
+      listening={false}
     />
   {:else}
+    <!-- Empty Slot State -->
+    <Rect
+      x={0}
+      y={0}
+      width={slotRect.w}
+      height={slotRect.h}
+      stroke="#cbd5e1"
+      strokeWidth={2}
+      dash={[5, 5]}
+    />
     <Text
-      config={{
-        text: `Slot ${imageData?.id || '?'}\n(No Image)`,
-        x: 0,
-        y: slotRect.h / 2 - 12,
-        width: slotRect.w,
-        align: 'center',
-        fontSize: 12,
-        fill: '#94a3b8'
-      }}
+      text="Empty Slot"
+      x={0}
+      y={slotRect.h / 2 - 12}
+      width={slotRect.w}
+      align="center"
+      fontSize={12}
+      fill="#94a3b8"
     />
   {/if}
 </Group>

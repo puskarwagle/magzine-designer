@@ -1,6 +1,6 @@
 <script>
   import { Stage, Layer, Group, Rect } from 'svelte-konva';
-  import { activeSpreadLayout, spreadsStore, currentSpreadIndexStore, activePageStore, updateSlotImage } from '../../stores/spreads.js';
+  import { activeSpreadLayout, spreadsStore, currentSpreadIndexStore, activePageStore, updateSlotImage, addImageToCurrentSpread } from '../../stores/spreads.js';
   import { projectStore } from '../../stores/project.js';
   import { zoomStore } from '../../stores/ui.js';
   import { albumSettingsStore } from '../../stores/settings.js';
@@ -27,7 +27,15 @@
     const newImageId = e.dataTransfer.getData('imageId');
     if (!newImageId) return;
 
-    const stage = stageRef.getStage();
+    // svelte-konva v1 exports 'node' as the Konva Stage instance
+    let stage = stageRef?.node || null;
+
+    if (!stage) {
+      console.warn('Could not find Konva stage instance, falling back to addImageToCurrentSpread');
+      addImageToCurrentSpread(newImageId);
+      return;
+    }
+
     stage.setPointersPositions(e);
     const pos = stage.getRelativePointerPosition();
 
@@ -41,10 +49,19 @@
       if (slotNode && slotNode.name() === 'image-slot') {
         const oldImageId = slotNode.id();
         let pageType = layout.layoutMode === 'spread' || layout.isCover ? 'spread' : layout.activePage;
-        updateSlotImage(spreadIndex, pageType, oldImageId, newImageId);
+
+        if (oldImageId) {
+          updateSlotImage(spreadIndex, pageType, oldImageId, newImageId);
+        } else {
+          addImageToCurrentSpread(newImageId);
+        }
+      } else {
+        addImageToCurrentSpread(newImageId);
       }
+    } else {
+      addImageToCurrentSpread(newImageId);
     }
-  }
+    }
 
 </script>
 
@@ -58,12 +75,10 @@
   {#if layout && !layout.error && !layout.loading}
     <Stage
       bind:this={stageRef}
-      config={{
-        width: stageWidth,
-        height: stageHeight,
-        scaleX: zoom,
-        scaleY: zoom
-      }}
+      width={stageWidth}
+      height={stageHeight}
+      scaleX={zoom}
+      scaleY={zoom}
     >
       <Layer>
         {#if layout.layoutMode === 'spread' || (layout.isCover && $albumSettingsStore.includeCover)}

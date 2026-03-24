@@ -114,7 +114,7 @@ export function updateSlotImage(spreadIndex, pageType, oldImageId, newImageId) {
     else if (pageType === 'spread') spread.spreadPage = updatePage(spread.spreadPage);
 
     spreads[spreadIndex] = spread;
-    return spreads;
+    return [...spreads];
   });
 }
 
@@ -122,18 +122,29 @@ export function updateSlotImage(spreadIndex, pageType, oldImageId, newImageId) {
  * Adds an image to the current spread/page.
  */
 export function addImageToCurrentSpread(imageId) {
+  console.log('addImageToCurrentSpread called with:', imageId);
   const spreadIndex = get(currentSpreadIndexStore);
   const layoutMode = get(layoutModeStore);
   const activePage = get(activePageStore);
   
   spreadsStore.update($spreads => {
+    console.log('Current spreads count:', $spreads.length, 'Index:', spreadIndex);
     const spreads = [...$spreads];
     const spread = { ...spreads[spreadIndex] };
-    if (!spread) return $spreads;
+    if (!spread) {
+      console.error('No spread found at index:', spreadIndex);
+      return $spreads;
+    }
 
     const pageType = layoutMode === 'spread' ? 'spread' : activePage;
+    console.log('Adding to pageType:', pageType);
 
     const addToPage = (pageState) => {
+      // Avoid duplicate image IDs in the same page/spread
+      if (pageState.imageIds.includes(imageId)) {
+        console.log('Image already in page, skipping add:', imageId);
+        return pageState;
+      }
       const newImageIds = [...pageState.imageIds, imageId];
       return LayoutEngine.updatePageImages(pageState, newImageIds);
     };
@@ -143,7 +154,9 @@ export function addImageToCurrentSpread(imageId) {
     else if (pageType === 'spread') spread.spreadPage = addToPage(spread.spreadPage);
 
     spreads[spreadIndex] = spread;
-    return spreads;
+    const result = [...spreads];
+    console.log('New image IDs for', pageType, ':', spread[pageType + (pageType === 'spread' ? 'Page' : 'Page')].imageIds);
+    return result;
   });
 }
 
@@ -251,6 +264,29 @@ export const activeSpreadLayout = derived(
           unit: unit,
           dpi: dpi
         });
+
+        // Split spread slots into left/right page slots for KonvaPage rendering
+        const rightPageStartX = pageWidthPx + spineWidthPx;
+        const leftSlots = [];
+        const rightSlots = [];
+        for (const slot of layoutData.slots) {
+          const slotCenterX = slot.slotRect.x + slot.slotRect.w / 2;
+          if (slotCenterX < rightPageStartX) {
+            // Slot belongs to left page — coordinates are already relative
+            leftSlots.push(slot);
+          } else {
+            // Slot belongs to right page — adjust x to be relative to right page
+            rightSlots.push({
+              ...slot,
+              slotRect: {
+                ...slot.slotRect,
+                x: slot.slotRect.x - rightPageStartX
+              }
+            });
+          }
+        }
+        layoutData.leftPageSlots = leftSlots;
+        layoutData.rightPageSlots = rightSlots;
       } else {
         const leftSlots = LayoutEngine.applyPresetToPage({
           pageState: spread.leftPage,
