@@ -1,6 +1,7 @@
-const { app, BrowserWindow, dialog, ipcMain } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, protocol, net } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { pathToFileURL } = require('url');
 const { registerIpcHandlers } = require('./ipcHandlers.js');
 
 let mainWindow;
@@ -40,6 +41,13 @@ registerIpcHandlers({
 
 if (process.env.NODE_ENV !== 'test') {
   app.whenReady().then(() => {
+    // Register custom protocol for local images
+    protocol.handle('media', (request) => {
+      const filePath = request.url.slice('media://'.length);
+      // Ensure we decode the URI component in case there are spaces or special chars
+      return net.fetch(pathToFileURL(decodeURIComponent(filePath)).toString());
+    });
+
     createWindow();
 
     app.on('activate', () => {

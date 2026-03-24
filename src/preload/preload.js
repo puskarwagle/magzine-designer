@@ -4,6 +4,9 @@ contextBridge.exposeInMainWorld('api', {
   pickFolder: async () => {
     return await ipcRenderer.invoke('pick-folder');
   },
+  getImagesInFolder: async (folderPath) => {
+    return await ipcRenderer.invoke('get-images-in-folder', folderPath);
+  },
   loadSampleFolder: async () => {
     return await ipcRenderer.invoke('load-sample-folder');
   },

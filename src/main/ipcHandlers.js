@@ -25,10 +25,27 @@ function registerIpcHandlers(deps) {
       .map((file, idx) => ({
         id: `img-${idx}`,
         fileName: file,
-        path: path.join(folderPath, file)
+        path: `media://${path.join(folderPath, file)}`
       }));
 
     return { folderPath, images };
+  });
+
+  ipcMain.handle('get-images-in-folder', async (event, folderPath) => {
+    try {
+      if (!folderPath) return { folderPath: null, images: [] };
+      const files = await fs.promises.readdir(folderPath);
+      const images = files
+        .filter((file) => /\.(jpe?g|png)$/i.test(file))
+        .map((file, idx) => ({
+          id: `img-${idx}`,
+          fileName: file,
+          path: `media://${path.join(folderPath, file)}`
+        }));
+      return { folderPath, images };
+    } catch (e) {
+      return { folderPath: null, images: [] };
+    }
   });
 
   ipcMain.handle('get-layout-presets', async () => {
@@ -51,9 +68,9 @@ function registerIpcHandlers(deps) {
       const images = files
         .filter((file) => /\.(jpe?g|png)$/i.test(file))
         .map((file, idx) => ({
-          id: `img-${idx}`,
+          id: `img-sample-${idx}`,
           fileName: file,
-          path: path.join(folderPath, file)
+          path: `media://${path.join(folderPath, file)}`
         }));
 
       return { folderPath, images };

@@ -1,26 +1,15 @@
 <script>
-  import { projectStore } from '../../stores/project.js';
+  import { projectStore, addImagesToProject } from '../../stores/project.js';
   import SidebarPanel from './SidebarPanel.svelte';
 
   async function handlePickFolder() {
     try {
       const result = await window.api.pickFolder();
       if (result && result.folderPath) {
-        projectStore.set(result);
+        addImagesToProject(result);
       }
     } catch (error) {
       console.error('Error picking folder:', error);
-    }
-  }
-
-  async function handleLoadSample() {
-    try {
-      const result = await window.api.loadSampleFolder();
-      if (result && result.folderPath) {
-        projectStore.set(result);
-      }
-    } catch (error) {
-      console.error('Error loading sample folder:', error);
     }
   }
 
@@ -31,6 +20,39 @@
 
   $: images = $projectStore.images;
   $: folderPath = $projectStore.folderPath;
+
+  // Configuration for dynamic expansion
+  const INITIAL_VISIBLE = 5;
+  const EXPANSION_RATE = 0.2; // Show 20% of remaining each click
+  const MIN_INCREMENT = 10;  // Never show fewer than 10 additional images
+
+  // Track visible count per source group
+  let visibleCounts = {};
+
+  // Group images by source
+  $: groups = images.reduce((acc, img) => {
+    const source = img.source || 'Unknown';
+    if (!acc[source]) acc[source] = [];
+    acc[source].push(img);
+    
+    // Initialize visible count if not set
+    if (visibleCounts[source] === undefined) {
+      visibleCounts[source] = INITIAL_VISIBLE;
+    }
+    return acc;
+  }, {});
+
+  function expandGroup(source, total) {
+    const current = visibleCounts[source] || INITIAL_VISIBLE;
+    const remaining = total - current;
+    
+    if (remaining <= 0) return;
+
+    // Dynamic increment: % of what's hidden, with a floor to prevent tiny reveals
+    const increment = Math.max(MIN_INCREMENT, Math.floor(remaining * EXPANSION_RATE));
+
+    visibleCounts[source] = current + increment;
+  }
 </script>
 
 <SidebarPanel>
@@ -48,28 +70,45 @@
       />
       <button class="button secondary" on:click={handlePickFolder}>Select</button>
     </div>
-    {#if !folderPath}
-      <p class="form-hint">Pick a folder with JPG/PNG images to start.</p>
-      <button class="button secondary" style="margin-top: 0.5rem;" on:click={handleLoadSample}>Load Sample Photos</button>
-    {/if}
+    <p class="form-hint">Add local folders or sample images to your library.</p>
   </div>
 
-  <div class="panel-header sub">Pool ({images.length} images)</div>
-  
-  <div class="image-pool-grid">
-    {#each images as img (img.id)}
-      <div 
-        class="thumb" 
-        title={img.fileName || img.id}
-        draggable="true"
-        role="button"
-        tabindex="0"
-        on:dragstart={(e) => handleDragStart(e, img)}
-      >
-        <img src={img.path} alt={img.fileName || img.id} loading="lazy" />
-      </div>
-    {/each}
-  </div>
+  {#each Object.entries(groups) as [source, groupImages]}
+    {@const visibleLimit = visibleCounts[source] || 5}
+    <div class="panel-header sub">{source}</div>
+    
+    <div class="image-pool-grid">
+      {#each groupImages.slice(0, visibleLimit) as img (img.id)}
+        <div 
+          class="thumb" 
+          title={img.fileName || img.id}
+          draggable="true"
+          role="button"
+          tabindex="0"
+          on:dragstart={(e) => handleDragStart(e, img)}
+        >
+          <img src={img.path} alt={img.fileName || img.id} loading="lazy" />
+        </div>
+      {/each}
+      
+      {#if groupImages.length > visibleLimit}
+        {@const remainingCount = groupImages.length - visibleLimit}
+        <div 
+          class="thumb more" 
+          title="See more"
+          draggable="true"
+          role="button"
+          tabindex="0"
+          on:dragstart={(e) => handleDragStart(e, groupImages[visibleLimit])}
+          on:click={() => expandGroup(source, groupImages.length)}
+          on:keydown={(e) => e.key === 'Enter' && expandGroup(source, groupImages.length)}
+        >
+          <img src={groupImages[visibleLimit].path} alt="More images" class="blurred" />
+          <div class="overlay">+{remainingCount}</div>
+        </div>
+      {/if}
+    </div>
+  {/each}
 </SidebarPanel>
 
 <style>
@@ -77,8 +116,7 @@
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
     gap: 0.5rem;
-    max-height: 400px;
-    overflow-y: auto;
+    padding-bottom: 1rem;
     padding-right: 0.5rem;
   }
 
@@ -90,6 +128,7 @@
     border: 1px solid #334155;
     cursor: pointer;
     transition: all 0.2s;
+    position: relative;
   }
 
   .thumb:hover {
@@ -101,5 +140,21 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
+  }
+
+  .thumb.more .blurred {
+    filter: blur(4px) brightness(0.7);
+  }
+
+  .thumb.more .overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: white;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.5);
   }
 </style>
