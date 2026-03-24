@@ -11,6 +11,24 @@
   import { selectedSlotIdStore, currentSpreadIndexStore, updateSlotGeometryInPixels } from '../../stores/spreads.js';
 
   let imageObj = null;
+  let groupNode = null;
+
+  $: if (groupNode && slotInfo?.zIndex !== undefined) {
+    groupNode.zIndex(slotInfo.zIndex);
+  }
+
+  function customClipFunc(ctx) {
+    if (!slotRect.path || slotRect.path.length === 0) return;
+    ctx.beginPath();
+    for (let i = 0; i < slotRect.path.length; i++) {
+        const p = slotRect.path[i];
+        const lx = p.x - slotRect.x;
+        const ly = p.y - slotRect.y;
+        if (i === 0) ctx.moveTo(lx, ly);
+        else ctx.lineTo(lx, ly);
+    }
+    ctx.closePath();
+  }
 
   $: if (imageData && imageData.path) {
     const img = new window.Image();
@@ -52,15 +70,19 @@
 </script>
 
 <Group
-  x={slotRect.x}
-  y={slotRect.y}
+  bind:handle={groupNode}
+  x={slotRect.x + (slotInfo?.rotation ? slotRect.w / 2 : 0)}
+  y={slotRect.y + (slotInfo?.rotation ? slotRect.h / 2 : 0)}
   width={slotRect.w}
   height={slotRect.h}
-  clipX={0}
-  clipY={0}
-  clipWidth={slotRect.w}
-  clipHeight={slotRect.h}
+  clipFunc={slotRect.path ? customClipFunc : undefined}
+  clipX={slotRect.path ? undefined : 0}
+  clipY={slotRect.path ? undefined : 0}
+  clipWidth={slotRect.path ? undefined : slotRect.w}
+  clipHeight={slotRect.path ? undefined : slotRect.h}
   rotation={slotInfo?.rotation || 0}
+  offsetX={slotInfo?.rotation ? slotRect.w / 2 : 0}
+  offsetY={slotInfo?.rotation ? slotRect.h / 2 : 0}
   name="image-slot"
   id={imageData?.id}
   draggable={true}
@@ -78,7 +100,28 @@
     fill="#f1f5f9"
   />
 
-  {#if imageObj}
+  {#if slotInfo?.type === 'whitespace'}
+    <!-- Transparent Ghost Slot -->
+    <Rect
+      x={0}
+      y={0}
+      width={slotRect.w}
+      height={slotRect.h}
+      fill="transparent"
+      listening={false}
+    />
+  {:else if slotInfo?.type === 'text'}
+    <!-- Text Slot -->
+    <Text
+      text={slotInfo.textConfig?.content || "Text Block"}
+      x={10}
+      y={10}
+      width={slotRect.w - 20}
+      fontSize={slotInfo.textConfig?.fontSize || 16}
+      fill="#334155"
+      align={slotInfo.textConfig?.align || "left"}
+    />
+  {:else if imageObj}
     <Image
       image={imageObj}
       x={imageRect.x}

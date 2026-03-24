@@ -16,12 +16,218 @@ import { UndoStack } from './undo.js';
  * @property {number} y - Top-left Y coordinate in [0,1] inside margin box
  * @property {number} w - Width in [0,1] inside margin box (0-2 for spread mode)
  * @property {number} h - Height in [0,1] inside margin box
+ * @property {Array<{x: number, y: number}>} [path] - Optional polygon path for non-rectangular slots
  * @property {number} priority - Bigger = more important (must be unique within preset)
  * @property {'portrait'|'landscape'|'square'|'any'} [preferredRatio] - Ideal image orientation for this slot (inferred from w/h if absent)
  * @property {'fit'|'fill'} [mode='fit'] - 'fit' letterboxes, 'fill' crops to cover slot
  * @property {number} [rotation] - Rotation in degrees (for collage presets)
  * @property {number} [zIndex] - Stacking order (for overlapping collage presets)
+ * @property {number} [overlap] - Amount of overlap compensation for adjoining images
+ * @property {boolean} [bleed] - True if this slot bleeds to page edge
+ * @property {'image'|'whitespace'|'text'} [type='image'] - Type of slot content
  */
+
+/**
+ * Polygon primitive for advanced layouts
+ */
+export class Polygon {
+  /**
+   * @param {Array<{x: number, y: number}>} points
+   */
+  constructor(points) {
+    this.points = points;
+  }
+
+  // Backward compatibility getters for legacy {x, y, w, h} access
+  get x() { return this.boundingBox().x; }
+  get y() { return this.boundingBox().y; }
+  get w() { return this.boundingBox().w; }
+  get h() { return this.boundingBox().h; }
+
+  area() {
+    let total = 0;
+    for (let i = 0, l = this.points.length; i < l; i++) {
+      const addX = this.points[i].x;
+      const addY = this.points[i === l - 1 ? 0 : i + 1].y;
+      const subX = this.points[i === l - 1 ? 0 : i + 1].x;
+      const subY = this.points[i].y;
+      total += (addX * addY * 0.5) - (subX * subY * 0.5);
+    }
+    return Math.abs(total);
+  }
+
+  centroid() {
+    let cx = 0, cy = 0;
+    let signedArea = 0;
+    let x0 = 0, y0 = 0, x1 = 0, y1 = 0;
+    let a = 0;
+
+    for (let i = 0, l = this.points.length; i < l; i++) {
+      x0 = this.points[i].x;
+      y0 = this.points[i].y;
+      x1 = this.points[i === l - 1 ? 0 : i + 1].x;
+      y1 = this.points[i === l - 1 ? 0 : i + 1].y;
+      a = x0 * y1 - x1 * y0;
+      signedArea += a;
+      cx += (x0 + x1) * a;
+      cy += (y0 + y1) * a;
+    }
+
+    signedArea *= 0.5;
+    if (signedArea === 0) return { x: 0, y: 0 };
+    cx /= (6.0 * signedArea);
+    cy /= (6.0 * signedArea);
+
+    return { x: cx, y: cy };
+  }
+
+  boundingBox() {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    if (this.points.length === 0) return { x: 0, y: 0, w: 0, h: 0 };
+    for (const p of this.points) {
+      if (p.x < minX) minX = p.x;
+      if (p.x > maxX) maxX = p.x;
+      if (p.y < minY) minY = p.y;
+      if (p.y > maxY) maxY = p.y;
+    }
+    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+  }
+
+  clipPath(ctx) {
+    if (!ctx || this.points.length === 0) return;
+    ctx.beginPath();
+    for (let i = 0; i < this.points.length; i++) {
+      const p = this.points[i];
+      if (i === 0) ctx.moveTo(p.x, p.y);
+      else ctx.lineTo(p.x, p.y);
+    }
+    ctx.closePath();
+  }
+
+  static fromRect(x, y, w, h) {
+    return new Polygon([
+      { x, y },
+      { x: x + w, y },
+      { x: x + w, y: y + h },
+      { x, y: y + h }
+    ]);
+  }
+}
+
+/**
+ * Directed Overlap Graph structure tracking overlap relationships
+ */
+export class OverlapGraph {
+  constructor() {
+    this.edges = []; // { slotIdA, slotIdB, pixels, direction }
+  }
+
+  addEdge(slotIdA, slotIdB, pixels, direction) {
+    this.edges.push({ slotIdA, slotIdB, pixels, direction });
+  }
+
+  getOverlappedBy(slotIdA) {
+    return this.edges.filter(e => e.slotIdA === slotIdA);
+  }
+
+  getOverlapsFor(slotIdB) {
+    return this.edges.filter(e => e.slotIdB === slotIdB);
+  }
+}
+
+/**
+ * Strategy Registry
+ * Replaces magic integer codes with descriptive objects.
+ */
+export const StrategyRegistry = {
+  'standard': { id: 'standard', label: 'Standard', isSpread: false, defaultStyle: 'clean' },
+  'horizontal': { id: 'horizontal', label: 'Horizontal Bias', isSpread: false, defaultStyle: 'clean' },
+  'vertical': { id: 'vertical', label: 'Vertical Bias', isSpread: false, defaultStyle: 'clean' },
+  'balanced': { id: 'balanced', label: 'Balanced', isSpread: false, defaultStyle: 'clean' },
+  'hero': { id: 'hero', label: 'Hero', isSpread: false, defaultStyle: 'editorial' },
+  'best-fit': { id: 'best-fit', label: 'Best Fit', isSpread: false, defaultStyle: 'clean' },
+  'chaos': { id: 'chaos', label: 'Chaos', isSpread: false, defaultStyle: 'clean' },
+  'editorial-diagonal': { id: 'editorial-diagonal', label: 'Editorial Diagonal', isSpread: false, defaultStyle: 'editorial' },
+  'narrative-flow': { id: 'narrative-flow', label: 'Narrative Flow', isSpread: false, defaultStyle: 'story' },
+  
+  // Spread Specific Strategies
+  'spread-balanced': { id: 'spread-balanced', label: 'Balanced', isSpread: true, defaultStyle: 'clean' },
+  'spread-best-fit': { id: 'spread-best-fit', label: 'Best Fit', isSpread: true, defaultStyle: 'clean' },
+  'spread-sequential': { id: 'spread-sequential', label: 'Sequential', isSpread: true, defaultStyle: 'clean' },
+  'spread-interleaved': { id: 'spread-interleaved', label: 'Interleaved', isSpread: true, defaultStyle: 'clean' }
+};
+
+/**
+ * Mathematical operation to slice a rectangle diagonally into two trapezoidal Polygons.
+ * Only applied at depth >= 1 preventing non-clean outer edges.
+ * @param {Object} rect {x, y, w, h} or Polygon
+ * @param {number} angleDeg angle in degrees (clamped to +/-15)
+ * @param {number} ratio split ratio (e.g. 0.5)
+ * @param {boolean} splitHorizontal if true slices top to bottom, else left to right
+ * @returns {[Polygon, Polygon]} [leftPoly, rightPoly]
+ */
+export function diagonalCut(rect, angleDeg = 8, ratio = 0.5, splitHorizontal = true) {
+  // Clamp angle to +/-15 max for aesthetic sanity
+  const angle = Math.max(-15, Math.min(15, angleDeg));
+  const rad = angle * Math.PI / 180;
+
+  if (splitHorizontal) {
+    // Cut line moves roughly vertically but at an angle
+    const topX = rect.x + rect.w * ratio;
+    const topY = rect.y;
+    
+    // Bottom point offset by angle tangent over the height
+    const botX = topX + rect.h * Math.tan(rad);
+    const botY = rect.y + rect.h;
+    
+    // Clamp x bounds inside rect
+    const safeTopX = Math.max(rect.x + 0.01*rect.w, Math.min(rect.x + 0.99*rect.w, topX));
+    const safeBotX = Math.max(rect.x + 0.01*rect.w, Math.min(rect.x + 0.99*rect.w, botX));
+
+    const leftPoly = new Polygon([
+      { x: rect.x, y: rect.y },
+      { x: safeTopX, y: topY },
+      { x: safeBotX, y: botY },
+      { x: rect.x, y: rect.y + rect.h }
+    ]);
+    
+    const rightPoly = new Polygon([
+      { x: safeTopX, y: topY },
+      { x: rect.x + rect.w, y: rect.y },
+      { x: rect.x + rect.w, y: rect.y + rect.h },
+      { x: safeBotX, y: botY }
+    ]);
+    
+    return [leftPoly, rightPoly];
+  } else {
+    // Horizontal cut with slight angle up/down
+    const leftY = rect.y + rect.h * ratio;
+    const leftX = rect.x;
+
+    const rightY = leftY + rect.w * Math.tan(rad);
+    const rightX = rect.x + rect.w;
+
+    // Clamp y bounds
+    const safeLeftY = Math.max(rect.y + 0.01*rect.h, Math.min(rect.y + 0.99*rect.h, leftY));
+    const safeRightY = Math.max(rect.y + 0.01*rect.h, Math.min(rect.y + 0.99*rect.h, rightY));
+
+    const topPoly = new Polygon([
+      { x: rect.x, y: rect.y },
+      { x: rect.x + rect.w, y: rect.y },
+      { x: rightX, y: safeRightY },
+      { x: leftX, y: safeLeftY }
+    ]);
+
+    const bottomPoly = new Polygon([
+      { x: leftX, y: safeLeftY },
+      { x: rightX, y: safeRightY },
+      { x: rect.x + rect.w, y: rect.y + rect.h },
+      { x: rect.x, y: rect.y + rect.h }
+    ]);
+
+    return [topPoly, bottomPoly];
+  }
+}
 
 /**
  * @typedef {Object} LayoutPreset
@@ -81,6 +287,12 @@ export const LayoutEngine = {
   GUTTER_WIDTH,
   GUTTER_START,
   GUTTER_END,
+  
+  // Advanced Primitives
+  Polygon,
+  OverlapGraph,
+  StrategyRegistry,
+  diagonalCut,
   
   // Preset Registry
   presetsByCount,
@@ -262,6 +474,8 @@ function getPresetsForCount(imageCount) {
     { id: `DYNAMIC-P-${imageCount}-3`, label: 'Dynamic (Balanced)', imageCount, pageType: 'single', style: 'clean', slots: [] },
     { id: `DYNAMIC-P-${imageCount}-4`, label: 'Dynamic (Hero)', imageCount, pageType: 'single', style: 'clean', slots: [] },
     { id: `DYNAMIC-P-${imageCount}-6`, label: 'Dynamic (Chaos)', imageCount, pageType: 'single', style: 'clean', slots: [] },
+    { id: `DYNAMIC-P-${imageCount}-editorial-diagonal`, label: 'Dynamic (Editorial Diagonal)', imageCount, pageType: 'single', style: 'editorial', slots: [] },
+    { id: `DYNAMIC-P-${imageCount}-narrative-flow`, label: 'Dynamic (Narrative Flow)', imageCount, pageType: 'single', style: 'story', slots: [] },
     { id: `FLUID-P-${imageCount}-0`, label: 'Fluid (Standard)', imageCount, pageType: 'single', style: 'clean', slots: [] },
     { id: `FLUID-P-${imageCount}-5`, label: 'Fluid (Best Fit)', imageCount, pageType: 'single', style: 'clean', slots: [] },
   ];
@@ -339,13 +553,15 @@ function computeSlotRectangles({ imageIds, preset, marginBox, customSlots = {}, 
 
     // Determine strategy from ID suffix
     const parts = preset.id.split('-');
-    const strategy = parseInt(parts[parts.length - 1]) || 0;
+    const strategyRaw = parts.slice(3).join('-');
+    const strategy = isNaN(parseInt(strategyRaw)) ? strategyRaw : parseInt(strategyRaw);
     
     const generated = generateDynamicPreset(layoutImages, {
       isSpread: preset.pageType === 'spread',
       strategy,
       gap,
-      id: preset.id
+      id: preset.id,
+      candidates: 15, // Multi-pass scoring iterations
     });
     activePreset = { ...preset, slots: generated.slots };
   }
@@ -366,7 +582,25 @@ function computeSlotRectangles({ imageIds, preset, marginBox, customSlots = {}, 
     const w = (custom ? custom.w : slot.w) * unitW;
     const h = (custom ? custom.h : slot.h) * marginBox.height;
 
-    return { imageId, x, y, w, h, visible: true, slot };
+    let visualRect;
+    if (slot.visualRect) {
+        visualRect = {
+            w: slot.visualRect.w * unitW,
+            h: slot.visualRect.h * marginBox.height
+        };
+    } else {
+        visualRect = { w, h };
+    }
+
+    let path = null;
+    if (slot.path) {
+        path = slot.path.map(p => ({
+            x: (custom ? custom.x : p.x) * unitW, // Note: custom override doesn't rotate shapes well yet
+            y: (custom ? custom.y : p.y) * marginBox.height
+        }));
+    }
+
+    return { imageId, x, y, w, h, visualRect, path, visible: true, slot };
   });
 }
 
@@ -463,24 +697,34 @@ function applyPresetToPage({
 
   const imageMap = new Map(images.map(img => [img.id, img]));
 
-  return slotRects.map(({ imageId, x, y, w, h, visible, slot }) => {
+  return slotRects.map(({ imageId, x, y, w, h, visualRect, path, visible, slot }) => {
     const image = imageMap.get(imageId);
-    if (!image || !visible) {
-      return null;
-    }
+    if (!visible || !image) return null;
 
     const imgW = image.width || 1000;
     const imgH = image.height || 1000;
     
-    const mode = slot?.mode || 'fit';
-    const imageRect = mode === 'fill'
-      ? fillImageInSlot(imgW, imgH, w, h)
-      : fitImageInSlot(imgW, imgH, w, h);
+    // Fallbacks
+    const vW = visualRect ? visualRect.w : w;
+    const vH = visualRect ? visualRect.h : h;
+
+    const mode = slot?.mode || 'fill';
+    const rawImageRect = mode === 'fill'
+      ? fillImageInSlot(imgW, imgH, vW, vH)
+      : fitImageInSlot(imgW, imgH, vW, vH);
+
+    // Center the visualRect footprint inside the boundingRect the Svelte-Konva Group uses
+    const imageRect = {
+      x: rawImageRect.x + (w - vW) / 2,
+      y: rawImageRect.y + (h - vH) / 2,
+      w: rawImageRect.w,
+      h: rawImageRect.h,
+    };
 
     return {
       imageId,
       imagePath: image.path,
-      slotRect: { x, y, w, h },
+      slotRect: { x, y, w, h, visualRect, path },
       imageRect,
       slot,
     };
@@ -679,6 +923,8 @@ function getSpreadPresetsForCount(imageCount) {
     { id: `DYNAMIC-S-${imageCount}-5`, label: 'Dynamic (Best Fit)', imageCount, pageType: 'spread', style: 'clean', slots: [] },
     { id: `DYNAMIC-S-${imageCount}-1`, label: 'Dynamic (Sequential)', imageCount, pageType: 'spread', style: 'clean', slots: [] },
     { id: `DYNAMIC-S-${imageCount}-2`, label: 'Dynamic (Interleaved)', imageCount, pageType: 'spread', style: 'clean', slots: [] },
+    { id: `DYNAMIC-S-${imageCount}-editorial-diagonal`, label: 'Dynamic (Editorial Diagonal)', imageCount, pageType: 'spread', style: 'editorial', slots: [] },
+    { id: `DYNAMIC-S-${imageCount}-narrative-flow`, label: 'Dynamic (Narrative Flow)', imageCount, pageType: 'spread', style: 'story', slots: [] },
     { id: `FLUID-S-${imageCount}-0`, label: 'Fluid (Balanced)', imageCount, pageType: 'spread', style: 'clean', slots: [] },
   ];
 }
@@ -844,22 +1090,33 @@ function applyPresetToSpread({
 
   const allSlotRects = [...slotRectsL, ...slotRectsR];
 
-  return allSlotRects.map(({ imageId, x, y, w, h, visible, slot }) => {
+  return allSlotRects.map(({ imageId, x, y, w, h, visualRect, path, visible, slot }) => {
     const image = imageMap.get(imageId);
     if (!visible || !image) return null;
 
     const imgW = image.width || 1000;
     const imgH = image.height || 1000;
     
+    // Fallbacks
+    const vW = visualRect ? visualRect.w : w;
+    const vH = visualRect ? visualRect.h : h;
+
     const mode = slot?.mode || 'fill';
-    const imageRect = mode === 'fill'
-      ? fillImageInSlot(imgW, imgH, w, h)
-      : fitImageInSlot(imgW, imgH, w, h);
+    const rawImageRect = mode === 'fill'
+      ? fillImageInSlot(imgW, imgH, vW, vH)
+      : fitImageInSlot(imgW, imgH, vW, vH);
+
+    const imageRect = {
+      x: rawImageRect.x + (w - vW) / 2,
+      y: rawImageRect.y + (h - vH) / 2,
+      w: rawImageRect.w,
+      h: rawImageRect.h,
+    };
 
     return {
       imageId,
       imagePath: image.path,
-      slotRect: { x, y, w, h },
+      slotRect: { x, y, w, h, visualRect, path },
       imageRect,
       slot,
       crossesGutter: false, // In this mode, images never cross the gutter
@@ -910,69 +1167,63 @@ function shuffleImagesInPreset(imageIds, lockedIndices = new Set()) {
 
 /**
  * Main recursive partition — improved version.
- *
- * Key changes vs original:
- * - Direction-aware grouping: splitIntoTwo now receives the intended split axis
- *   so it can optimise for horizontal vs vertical weight.
- * - Alternating direction: each recursion level alternates H/V unless a
- *   strategy forces a specific axis, producing more varied geometry.
- * - Count-weighted split ratios: group area allocation is weighted by image
- *   count, not just summed ratios, so large groups don't get squeezed.
- * - Adaptive clamping: clamp range widens when group sizes are very unequal.
- * - Real-error Best Fit: strategy 5 runs the full sub-partition on both
- *   splits and picks the one with lower actual slot error.
- *
  * @param {number[]}        indices    - Image indices to place
- * @param {object}          rect       - { x, y, w, h } in pixel-scale coordinates
+ * @param {Polygon}         poly       - Polygon shape bounding this partition
  * @param {number[]}        ratios     - Aspect ratios for all images
  * @param {number}          gap        - Gap in pixel-scale units
- * @param {number}          strategy   - 0=standard,1=H-bias,2=V-bias,3=balanced,
- *                                       4=hero,5=best-fit,6=chaos
+ * @param {string|number}   strategy   - string ID or legacy integer
  * @param {'h'|'v'|null}    parentDir  - Direction used by the parent split (internal)
- * @returns {{ imageIndex: number, rect: object }[]}
+ * @param {number}          depth      - Current recursion depth
+ * @returns {{ imageIndex: number, poly: Polygon }[]}
  */
-function partition(indices, rect, ratios, gap, strategy = 0, parentDir = null) {
+function partition(indices, poly, ratios, gap, strategy = 'standard', parentDir = null, depth = 0) {
     if (indices.length === 0) return [];
-    if (indices.length === 1) return [{ imageIndex: indices[0], rect }];
+    if (indices.length === 1) return [{ imageIndex: indices[0], poly }];
+
+    // Convert legacy integer strategies to strings if needed
+    if (typeof strategy === 'number') {
+        const legacyMap = {0: 'standard', 1: 'horizontal', 2: 'vertical', 3: 'balanced', 4: 'hero', 5: 'best-fit', 6: 'chaos'};
+        strategy = legacyMap[strategy] || 'standard';
+    }
 
     // ── Grouping ──────────────────────────────────────────────────────────────
     let groupA, groupB;
-    if (strategy === 4) {
+    if (strategy === 'hero') {
         // Hero: first image always gets its own panel
         groupA = [indices[0]];
         groupB = indices.slice(1);
     } else {
         // Tentative direction used to inform grouping metric
-        const tentativeH = strategy === 1 ? true
-            : strategy === 2 ? false
-                : rect.w >= rect.h;
-        [groupA, groupB] = splitIntoTwo(indices, ratios, strategy === 3, tentativeH);
+        const tentativeH = strategy === 'horizontal' ? true
+            : strategy === 'vertical' ? false
+                : poly.w >= poly.h;
+        [groupA, groupB] = splitIntoTwo(indices, ratios, strategy === 'balanced', tentativeH);
     }
 
     // ── Split direction ───────────────────────────────────────────────────────
     let splitHorizontal;
-    if (strategy === 1) {
+    if (strategy === 'horizontal') {
         splitHorizontal = true;
-    } else if (strategy === 2) {
+    } else if (strategy === 'vertical') {
         splitHorizontal = false;
-    } else if (strategy === 6) {
+    } else if (strategy === 'chaos') {
         // Chaos: probabilistic, biased toward longer dimension
-        const hWeight = rect.w / (rect.w + rect.h);
+        const hWeight = poly.w / (poly.w + poly.h);
         splitHorizontal = Math.random() < hWeight;
-    } else if (strategy === 5) {
+    } else if (strategy === 'best-fit' || strategy === 'spread-best-fit') {
         // Best Fit: run both sub-partitions, pick the one with lower real slot error
-        const scoreH = computePartitionError(groupA, groupB, rect, ratios, gap, true, strategy, 'h');
-        const scoreV = computePartitionError(groupA, groupB, rect, ratios, gap, false, strategy, 'v');
+        const scoreH = computePartitionError(groupA, groupB, poly, ratios, gap, true, strategy, 'h', depth);
+        const scoreV = computePartitionError(groupA, groupB, poly, ratios, gap, false, strategy, 'v', depth);
         splitHorizontal = scoreH <= scoreV;
     } else {
-        // Standard (0) + Balanced (3): alternate relative to parent direction.
+        // Standard, Balanced, Editorial: alternate relative to parent direction.
         // Root level falls back to longer-dimension split.
         if (parentDir === 'h') {
             splitHorizontal = false;
         } else if (parentDir === 'v') {
             splitHorizontal = true;
         } else {
-            splitHorizontal = rect.w >= rect.h;
+            splitHorizontal = poly.w >= poly.h;
         }
     }
 
@@ -1000,30 +1251,71 @@ function partition(indices, rect, ratios, gap, strategy = 0, parentDir = null) {
     const maxClamp = 1 - minClamp;           // 0.90 … 0.75
     ratio = Math.max(minClamp, Math.min(maxClamp, ratio));
 
-    if (strategy === 6) {
+    // Aesthetic ratio snapping
+    ratio = snapToAestheticRatio(ratio);
+
+    if (strategy === 'chaos') {
         ratio = Math.max(minClamp, Math.min(maxClamp, ratio + (Math.random() - 0.5) * 0.15));
     }
 
     // ── Recurse ───────────────────────────────────────────────────────────────
-    if (splitHorizontal) {
-        const w1 = Math.round((rect.w - gap) * ratio);
-        const w2 = rect.w - gap - w1;
-        const rectA = { x: rect.x, y: rect.y, w: w1, h: rect.h };
-        const rectB = { x: rect.x + w1 + gap, y: rect.y, w: w2, h: rect.h };
-        return [
-            ...partition(groupA, rectA, ratios, gap, strategy, childDir),
-            ...partition(groupB, rectB, ratios, gap, strategy, childDir),
-        ];
-    } else {
-        const h1 = Math.round((rect.h - gap) * ratio);
-        const h2 = rect.h - gap - h1;
-        const rectA = { x: rect.x, y: rect.y, w: rect.w, h: h1 };
-        const rectB = { x: rect.x, y: rect.y + h1 + gap, w: rect.w, h: h2 };
-        return [
-            ...partition(groupA, rectA, ratios, gap, strategy, childDir),
-            ...partition(groupB, rectB, ratios, gap, strategy, childDir),
-        ];
+    let polyA, polyB;
+
+    if (strategy === 'editorial-diagonal' && depth >= 1) {
+        // Bias the angle randomly between 5 and 10 degrees, alternating directions
+        const angleDeg = (Math.random() > 0.5 ? 1 : -1) * (5 + Math.random() * 5);
+        
+        // Prevent Gutter intersection on full spreads
+        // If x overlaps GUTTER_START / GUTTER_END, fall back to straight split
+        // For simplicity, we just check if it's near the center line (x ~ 1000 in scale coords)
+        const isSpread = typeof strategy === 'string' && strategy.startsWith('spread');
+        const middle = 1000;
+        let gutterSafe = true;
+        if (isSpread && poly.x < middle + 200 && poly.x + poly.w > middle - 200) {
+            gutterSafe = false;
+        }
+
+        if (gutterSafe) {
+            [polyA, polyB] = diagonalCut(poly, angleDeg, ratio, splitHorizontal);
+            // Ignore gap for diagonal cuts right now, or gap is handled by the Polygon math.
+            return [
+                ...partition(groupA, polyA, ratios, gap, strategy, childDir, depth + 1),
+                ...partition(groupB, polyB, ratios, gap, strategy, childDir, depth + 1),
+            ];
+        }
     }
+
+    if (splitHorizontal) {
+        const w1 = Math.round((poly.w - gap) * ratio);
+        const w2 = poly.w - gap - w1;
+        polyA = Polygon.fromRect(poly.x, poly.y, w1, poly.h);
+        polyB = Polygon.fromRect(poly.x + w1 + gap, poly.y, w2, poly.h);
+    } else {
+        const h1 = Math.round((poly.h - gap) * ratio);
+        const h2 = poly.h - gap - h1;
+        polyA = Polygon.fromRect(poly.x, poly.y, poly.w, h1);
+        polyB = Polygon.fromRect(poly.x, poly.y + h1 + gap, poly.w, h2);
+    }
+
+    return [
+        ...partition(groupA, polyA, ratios, gap, strategy, childDir, depth + 1),
+        ...partition(groupB, polyB, ratios, gap, strategy, childDir, depth + 1),
+    ];
+}
+
+/**
+ * Aesthetic Quantisation: Snap computed ratios to visually pleasing proportions.
+ */
+function snapToAestheticRatio(ratio) {
+    const targets = [0.333, 0.5, 0.618, 0.667];
+    const threshold = 0.05; // 5% snap radius
+    
+    for (const target of targets) {
+        if (Math.abs(ratio - target) < threshold) {
+            return target;
+        }
+    }
+    return ratio;
 }
 
 // ── Grouping helper ───────────────────────────────────────────────────────────
@@ -1083,29 +1375,31 @@ function splitIntoTwo(indices, ratios, balanced = false, horizontal = true) {
  * This is more expensive than the old one-level approximation, but it's
  * called with sub-groups so depth is bounded by log2(n).
  */
-function computePartitionError(groupA, groupB, rect, ratios, gap, horizontal, strategy, childDir) {
+function computePartitionError(groupA, groupB, poly, ratios, gap, horizontal, strategy, childDir, depth) {
     let ratio;
     if (horizontal) {
         const areaA = weightedRatioSum(groupA, ratios);
         const areaB = weightedRatioSum(groupB, ratios);
         ratio = Math.max(0.2, Math.min(0.8, areaA / (areaA + areaB)));
-        const w1 = Math.round((rect.w - gap) * ratio);
-        const w2 = rect.w - gap - w1;
-        const rectA = { x: rect.x, y: rect.y, w: w1, h: rect.h };
-        const rectB = { x: rect.x + w1 + gap, y: rect.y, w: w2, h: rect.h };
-        const slotsA = partition(groupA, rectA, ratios, gap, strategy, childDir);
-        const slotsB = partition(groupB, rectB, ratios, gap, strategy, childDir);
+        ratio = snapToAestheticRatio(ratio);
+        const w1 = Math.round((poly.w - gap) * ratio);
+        const w2 = poly.w - gap - w1;
+        const polyA = Polygon.fromRect(poly.x, poly.y, w1, poly.h);
+        const polyB = Polygon.fromRect(poly.x + w1 + gap, poly.y, w2, poly.h);
+        const slotsA = partition(groupA, polyA, ratios, gap, strategy, childDir, depth + 1);
+        const slotsB = partition(groupB, polyB, ratios, gap, strategy, childDir, depth + 1);
         return meanSlotError([...slotsA, ...slotsB], ratios);
     } else {
         const areaA = weightedInvRatioSum(groupA, ratios);
         const areaB = weightedInvRatioSum(groupB, ratios);
         ratio = Math.max(0.2, Math.min(0.8, areaA / (areaA + areaB)));
-        const h1 = Math.round((rect.h - gap) * ratio);
-        const h2 = rect.h - gap - h1;
-        const rectA = { x: rect.x, y: rect.y, w: rect.w, h: h1 };
-        const rectB = { x: rect.x, y: rect.y + h1 + gap, w: rect.w, h: h2 };
-        const slotsA = partition(groupA, rectA, ratios, gap, strategy, childDir);
-        const slotsB = partition(groupB, rectB, ratios, gap, strategy, childDir);
+        ratio = snapToAestheticRatio(ratio);
+        const h1 = Math.round((poly.h - gap) * ratio);
+        const h2 = poly.h - gap - h1;
+        const polyA = Polygon.fromRect(poly.x, poly.y, poly.w, h1);
+        const polyB = Polygon.fromRect(poly.x, poly.y + h1 + gap, poly.w, h2);
+        const slotsA = partition(groupA, polyA, ratios, gap, strategy, childDir, depth + 1);
+        const slotsB = partition(groupB, polyB, ratios, gap, strategy, childDir, depth + 1);
         return meanSlotError([...slotsA, ...slotsB], ratios);
     }
 }
@@ -1116,8 +1410,8 @@ function computePartitionError(groupA, groupB, rect, ratios, gap, horizontal, st
  */
 function meanSlotError(slots, ratios) {
     if (!slots.length) return 0;
-    const total = slots.reduce(({ imageIndex, rect: r }) => {
-        const slotRatio = r.w / r.h;
+    const total = slots.reduce(({ imageIndex, poly }) => {
+        const slotRatio = poly.w / poly.h;
         const imgRatio = ratios[imageIndex];
         return Math.abs(slotRatio - imgRatio) / imgRatio;
     }, 0);
@@ -1167,6 +1461,62 @@ function groupL1Error(indices, ratios, horizontal = true) {
     return vals.reduce((s, v) => s + Math.abs(v - median), 0);
 }
 
+// ── Multi-pass Scorers ────────────────────────────────────────────────────────
+export const Scorers = {
+  // Editorial: maximizes size contrast (variance in slot areas)
+  'editorial': (slots) => {
+    if (slots.length < 2) return 0;
+    const areas = slots.map(s => s.w * s.h);
+    const mean = areas.reduce((a, b) => a + b, 0) / areas.length;
+    const variance = areas.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / areas.length;
+    return variance * 1000;
+  },
+
+  // Minimal: maximizes whitespace
+  'minimal': (slots) => {
+    let emptyArea = 0;
+    for (const s of slots) {
+      if (s.type === 'whitespace') emptyArea += s.w * s.h;
+    }
+    return emptyArea;
+  },
+
+  // Grid: minimizes variance in slot sizes
+  'grid': (slots) => {
+    if (slots.length < 2) return 0;
+    const areas = slots.map(s => s.w * s.h);
+    const mean = areas.reduce((a, b) => a + b, 0) / areas.length;
+    const variance = areas.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / areas.length;
+    return -variance * 1000; // Negative because lower variance is better
+  },
+
+  // Narrative Flow: Hero big at optical top-center, others decreasing and following reading path
+  'story': (slots, totalItems) => {
+    let score = 0;
+    for (const s of slots) {
+      if (s.type !== 'image') continue;
+      // Re-derive index from priority
+      const index = totalItems - s.priority;
+      const area = s.w * s.h;
+      const cx = s.x + s.w / 2;
+      const cy = s.y + s.h / 2;
+
+      if (index === 0) {
+        // Hero: ideally near x: 0.35-0.65, y: 0.3-0.5
+        const dx = Math.max(0, Math.abs(cx - 0.5) - 0.15);
+        const dy = Math.max(0, Math.abs(cy - 0.4) - 0.1);
+        score -= (dx + dy) * 10;
+        score += area * 10;
+      } else {
+        score -= area * index; // Encourage smaller sizes for later indices
+        const readingDepth = cx + cy; // 0 top-left to 2 bot-right
+        score += readingDepth * index * 0.5; // Encourage later items to be further right/down
+      }
+    }
+    return score;
+  }
+};
+
 // ── Updated generateDynamicPreset ─────────────────────────────────────────────
 
 /**
@@ -1190,49 +1540,134 @@ export function generateDynamicPreset(images = [], isSpreadOrOptions = false, le
     }
 
     const n = images.length;
-    if (n === 0) return isSpread ? generateGenericSpreadGrid(0) : generateGenericGrid(0);
+    const strategy = options.strategy ?? 'standard';
+    
+    let ratios = images.map(img => (img.width / img.height) || 1);
+    let indices = images.map((_, i) => i);
 
-    const strategy = options.strategy ?? 0;
-    const ratios = images.map(img => (img.width / img.height) || 1);
-    const indices = images.map((_, i) => i);
+    // Phase 2: Ghost Slot Injection
+    if (options.ghostSlots && Array.isArray(options.ghostSlots)) {
+        options.ghostSlots.forEach(ghost => {
+            indices.push(ratios.length);
+            ratios.push(ghost.ratio || 1.0);
+        });
+    }
+
+    // Phase 2: Text Slot Injection
+    if (options.textSlots && Array.isArray(options.textSlots)) {
+        options.textSlots.forEach(text => {
+            indices.push(ratios.length);
+            const lh = (text.textConfig?.fontSize || 12) * 1.2;
+            const h = (text.textConfig?.lineCount || 2) * lh;
+            const w = 200; // estimated standard width
+            ratios.push(w / h);
+        });
+    }
+
+    const totalItems = ratios.length;
+    if (totalItems === 0) return isSpread ? generateGenericSpreadGrid(0) : generateGenericGrid(0);
 
     // Work in a large integer pixel space to avoid float precision drift
     const scale = 2000;
     const gap = (options.gap ?? GAP) * scale;
-    const baseRect = { x: 0, y: 0, w: (isSpread ? 2 : 1) * scale, h: scale };
+    const basePoly = Polygon.fromRect(0, 0, (isSpread ? 2 : 1) * scale, scale);
 
-    // parentDir starts null — root picks the longer dimension
-    const rawSlots = partition(indices, baseRect, ratios, gap, strategy, null);
+    // Multi-pass Candidate Generation
+    const numCandidates = options.candidates || 1;
+    let styleTarget = options.styleTarget || (StrategyRegistry[strategy] ? StrategyRegistry[strategy].defaultStyle : 'clean');
+    
+    let bestScore = -Infinity;
+    let bestSlots = null;
 
-    const slots = rawSlots.map(({ imageIndex, rect: r }) => ({
-        id: `dyn-${imageIndex}`,
-        x: r.x / scale,
-        y: r.y / scale,
-        w: r.w / scale,
-        h: r.h / scale,
-        priority: n - imageIndex,
-        preferredRatio: getImageOrientation(
-            images[imageIndex]?.width || 1,
-            images[imageIndex]?.height || 1
-        ),
-        mode: 'fill',
-    }));
+    for (let c = 0; c < numCandidates; c++) {
+        // First candidate uses exact strategy, sub-candidates inject some chaos for variation
+        const iterStrategy = (c === 0 || numCandidates === 1) ? strategy : 'chaos';
+        
+        const rawSlots = partition(indices, basePoly, ratios, gap, iterStrategy, null);
+
+        const candidateSlots = rawSlots.map(({ imageIndex, poly }) => {
+            let type = 'image';
+            let preferredRatio = 'any';
+            let textConfig = null;
+            let priority = totalItems - imageIndex;
+            let imageId = `dyn-${imageIndex}`;
+            let rotation = 0;
+
+            if (imageIndex < n) {
+                preferredRatio = getImageOrientation(images[imageIndex]?.width || 1, images[imageIndex]?.height || 1);
+            } else {
+                const offset = imageIndex - n;
+                const numGhosts = options.ghostSlots ? options.ghostSlots.length : 0;
+                if (offset < numGhosts) {
+                    type = 'whitespace';
+                    imageId = `ghost-${offset}`;
+                    if (options.ghostSlots[offset].priority !== undefined) priority = options.ghostSlots[offset].priority;
+                } else {
+                    const textOffset = offset - numGhosts;
+                    type = 'text';
+                    imageId = `text-${textOffset}`;
+                    textConfig = options.textSlots[textOffset].textConfig;
+                    if (options.textSlots[textOffset].priority !== undefined) priority = options.textSlots[textOffset].priority;
+                }
+            }
+
+            // Apply rotation if requested via options.rotations matching the id
+            if (options.rotations && options.rotations[imageIndex]) {
+                rotation = options.rotations[imageIndex];
+            }
+
+            let w = poly.w / scale;
+            let h = poly.h / scale;
+            let visualW = w;
+            let visualH = h;
+
+            // Bounding Box Rotation Compensation
+            if (rotation !== 0) {
+                const rad = Math.abs(rotation) * Math.PI / 180;
+                const sinA = Math.sin(rad);
+                const cosA = Math.cos(rad);
+                const denom = (cosA * cosA - sinA * sinA);
+                if (Math.abs(denom) > 0.01) {
+                    visualW = Math.max(0.01, (w * cosA - h * sinA) / denom);
+                    visualH = Math.max(0.01, (h * cosA - w * sinA) / denom);
+                }
+            }
+
+            return {
+                id: imageId,
+                type,
+                textConfig,
+                x: poly.x / scale,
+                y: poly.y / scale,
+                w,
+                h,
+                visualRect: { w: visualW, h: visualH },
+                path: poly.points.map(p => ({ x: p.x / scale, y: p.y / scale })),
+                priority,
+                preferredRatio,
+                rotation,
+                mode: 'fill'
+            };
+        });
+
+        const score = Scorers[styleTarget] ? Scorers[styleTarget](candidateSlots, totalItems) : 0;
+        
+        // Slight natural drift to prefer later iterations if scores tie (more chaos = more uniqueness)
+        if (!bestSlots || score > bestScore) {
+            bestScore = score;
+            bestSlots = candidateSlots;
+        }
+    }
+
+    const slots = bestSlots;
 
     const presetId = options.id || `DYNAMIC-${isSpread ? 'S' : 'P'}-${n}-${strategy}`;
     const labelPrefix = presetId.startsWith('FLUID') ? 'Fluid' : 'Dynamic';
-    const labels = {
-        0: 'Standard',
-        1: 'Horizontal',
-        2: 'Vertical',
-        3: 'Balanced',
-        4: 'Hero',
-        5: 'Best Fit',
-        6: 'Chaos',
-    };
+    const stratLabel = StrategyRegistry[strategy] ? StrategyRegistry[strategy].label : 'Auto';
 
     return {
         id: presetId,
-        label: `${labelPrefix} (${labels[strategy] ?? 'Auto'})`,
+        label: `${labelPrefix} (${stratLabel})`,
         imageCount: n,
         pageType: isSpread ? 'spread' : 'single',
         slots,
