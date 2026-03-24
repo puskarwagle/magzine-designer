@@ -49,17 +49,29 @@
       width={imageRect.w}
       height={imageRect.h}
     />
-    <!-- Visual Cue: Blue border for images -->
+    <!-- Debug Border for Slot -->
     <Rect
       x={0}
       y={0}
       width={slotRect.w}
       height={slotRect.h}
-      stroke="#3b82f6"
-      strokeWidth={4}
+      stroke="green"
+      strokeWidth={2}
+      dash={[5, 2]}
       listening={false}
     />
   {:else}
+    <!-- Debug Border for Slot -->
+    <Rect
+      x={0}
+      y={0}
+      width={slotRect.w}
+      height={slotRect.h}
+      stroke="green"
+      strokeWidth={2}
+      dash={[5, 2]}
+      listening={false}
+    />
     <!-- Empty Slot State -->
     <Rect
       x={0}

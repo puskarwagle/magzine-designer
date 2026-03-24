@@ -742,9 +742,10 @@ function applyPresetToSpread({
       return null;
     }
 
-    const x = marginBox.left + slot.x * marginBox.width;
+    const halfW = marginBox.width / 2;
+    const x = marginBox.left + slot.x * halfW;
     const y = marginBox.top + slot.y * marginBox.height;
-    const w = slot.w * marginBox.width;
+    const w = slot.w * halfW;
     const h = slot.h * marginBox.height;
 
     const imgW = image.width || 1000;

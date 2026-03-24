@@ -29,6 +29,27 @@ export const layoutModeStore = writable('spread'); // 'single' (per-page) or 'sp
 export const lockedSlotsStore = writable(new Map());
 
 /**
+ * Derived store that tracks all unique image IDs currently used in any spread or page.
+ */
+export const usedImageIdsStore = derived(spreadsStore, ($spreads) => {
+  const ids = new Set();
+  if (!$spreads) return ids;
+  
+  $spreads.forEach(spread => {
+    if (spread.leftPage?.imageIds) {
+      spread.leftPage.imageIds.forEach(id => ids.add(id));
+    }
+    if (spread.rightPage?.imageIds) {
+      spread.rightPage.imageIds.forEach(id => ids.add(id));
+    }
+    if (spread.spreadPage?.imageIds) {
+      spread.spreadPage.imageIds.forEach(id => ids.add(id));
+    }
+  });
+  return ids;
+});
+
+/**
  * Checks if a spread has any images placed on it.
  */
 export function isSpreadPopulated(spread) {

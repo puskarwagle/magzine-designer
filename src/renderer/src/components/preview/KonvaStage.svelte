@@ -81,6 +81,17 @@
       scaleY={zoom}
     >
       <Layer>
+        <!-- Debug Border for Stage -->
+        <Rect
+          x={0}
+          y={0}
+          width={layout.totalSpreadWidthPx}
+          height={layout.spreadHeightPx}
+          stroke="red"
+          strokeWidth={4}
+          dash={[10, 5]}
+          listening={false}
+        />
         {#if layout.layoutMode === 'spread' || (layout.isCover && $albumSettingsStore.includeCover)}
           <!-- Render full spread with two pages -->
           <KonvaPage

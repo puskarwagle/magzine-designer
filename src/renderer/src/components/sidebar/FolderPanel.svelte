@@ -1,6 +1,6 @@
 <script>
   import { projectStore, addImagesToProject } from '../../stores/project.js';
-  import { addImageToCurrentSpread } from '../../stores/spreads.js';
+  import { addImageToCurrentSpread, usedImageIdsStore } from '../../stores/spreads.js';
   import SidebarPanel from './SidebarPanel.svelte';
 
   async function handlePickFolder() {
@@ -102,6 +102,8 @@
       {#each groupImages.slice(0, visibleLimit) as img (img.id)}
         <div 
           class="thumb" 
+          class:used={$usedImageIdsStore.has(img.id)}
+          class:source-folder={img.source === 'menu content images'}
           title={img.fileName || img.id}
           draggable="true"
           role="button"
@@ -174,6 +176,16 @@
     cursor: pointer;
     transition: all 0.2s;
     position: relative;
+  }
+
+  .thumb.source-folder {
+    border: 2px solid rgba(59, 130, 246, 0.4);
+  }
+
+  .thumb.used {
+    border: 5px solid #3b82f6 !important;
+    box-shadow: 0 0 12px rgba(37, 99, 235, 0.6);
+    z-index: 2;
   }
 
   .thumb:hover {
