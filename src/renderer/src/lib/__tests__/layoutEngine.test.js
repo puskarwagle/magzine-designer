@@ -145,4 +145,71 @@ describe('LayoutEngine - Dynamic Layout', () => {
     const leftV2 = slotsV2.filter(s => s.slotRect.x < 1000).map(s => s.imageId).sort();
     expect(leftV2).toEqual(['1', '3']);
   });
+
+  it('applyPresetToPage respects configurable slotGapPx', () => {
+    const pageState = { imageIds: ['1', '2'], currentPresetIndex: 0 };
+    const images = [
+      { id: '1', width: 1000, height: 1000 },
+      { id: '2', width: 1000, height: 1000 },
+    ];
+    const margins = { top: 0, bottom: 0, inner: 0, outer: 0 };
+    const pageWidthPx = 1000;
+    const pageHeightPx = 1000;
+
+    // With 12px gap
+    const slots1 = LayoutEngine.applyPresetToPage({
+      pageState, images, margins, pageWidthPx, pageHeightPx,
+      unit: 'px', dpi: 72, isLeftPage: true, slotGapPx: 12
+    });
+    
+    // With 100px gap
+    const slots2 = LayoutEngine.applyPresetToPage({
+      pageState, images, margins, pageWidthPx, pageHeightPx,
+      unit: 'px', dpi: 72, isLeftPage: true, slotGapPx: 100
+    });
+
+    const gap1 = slots1[1].slotRect.x - (slots1[0].slotRect.x + slots1[0].slotRect.w);
+    const gap2 = slots2[1].slotRect.x - (slots2[0].slotRect.x + slots2[0].slotRect.w);
+
+    expect(Math.round(gap1)).toBe(12);
+    expect(Math.round(gap2)).toBe(100);
+  });
+
+  it('shuffling imageIds does not change slotRect coordinates (stable geometry)', () => {
+    const images = [
+      { id: '1', width: 2000, height: 1000 }, // Landscape
+      { id: '2', width: 1000, height: 2000 }, // Portrait
+    ];
+    const marginBox = { left: 0, top: 0, width: 1000, height: 1000 };
+    const preset = { id: 'DYNAMIC-P-2-0', pageType: 'single', slots: [] };
+
+    // Initial run (order: 1, 2)
+    const res1 = LayoutEngine.computeSlotRectangles({
+      imageIds: ['1', '2'],
+      preset,
+      images,
+      marginBox,
+      gap: 0,
+    });
+
+    // Shuffled run (order: 2, 1)
+    const res2 = LayoutEngine.computeSlotRectangles({
+      imageIds: ['2', '1'],
+      preset,
+      images,
+      marginBox,
+      gap: 0,
+    });
+
+    // The boxes (rects) should be identical even if content is in different indices
+    const boxes1 = res1.map(r => r.slotRect).sort((a, b) => a.x - b.x || a.y - b.y);
+    const boxes2 = res2.map(r => r.slotRect).sort((a, b) => a.x - b.x || a.y - b.y);
+
+    expect(boxes1).toEqual(boxes2);
+    
+    // But image IDs for each box should be swapped
+    const img1AtBoxX = res1[0].imageId;
+    const img2AtBoxX = res2[0].imageId;
+    expect(img1AtBoxX).not.toBe(img2AtBoxX);
+  });
 });

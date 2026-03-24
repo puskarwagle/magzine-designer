@@ -12,7 +12,8 @@ import {
   updateSlotImage,
   isSpreadPopulated,
   activeSpreadLayout,
-  archivedSpreadsStore
+  archivedSpreadsStore,
+  shuffleAllImages
 } from '../spreads.js';
 import { albumSettingsStore } from '../settings.js';
 import { projectStore } from '../project.js';
@@ -164,5 +165,75 @@ describe('activeSpreadLayout derived store', () => {
     expect(layout.leftPageMarginBox.top).toBe(100);
     expect(layout.leftPageMarginBox.width).toBe(800); // 1000 - 100 - 100
     expect(layout.leftPageMarginBox.height).toBe(800);
+  });
+});
+
+describe('spreads store - shuffleAllImages', () => {
+  beforeEach(() => {
+    spreadsStore.set([
+      {
+        id: 1,
+        type: 'spread',
+        leftPage: { imageIds: ['img1', 'img2'], currentPresetIndex: 0 },
+        rightPage: { imageIds: ['img3'], currentPresetIndex: 0 },
+        spreadPage: { imageIds: [], currentPresetIndex: 0 },
+      },
+      {
+        id: 2,
+        type: 'single',
+        leftPage: { imageIds: ['img4', 'img5'], currentPresetIndex: 0 },
+        rightPage: { imageIds: [], currentPresetIndex: 0 }, // Should be ignored for single type
+        spreadPage: { imageIds: [], currentPresetIndex: 0 },
+      }
+    ]);
+    layoutModeStore.set('single');
+  });
+
+  it('shuffles images across all pages while keeping counts', () => {
+    const originalImageIds = ['img1', 'img2', 'img3', 'img4', 'img5'];
+    
+    // Mock Math.random to get a deterministic shuffle for testing if needed, 
+    // but here we just want to verify counts and presence.
+    shuffleAllImages();
+    
+    const spreads = get(spreadsStore);
+    
+    // Check counts
+    expect(spreads[0].leftPage.imageIds).toHaveLength(2);
+    expect(spreads[0].rightPage.imageIds).toHaveLength(1);
+    expect(spreads[1].leftPage.imageIds).toHaveLength(2);
+    
+    // Check that all original images are still there
+    const allNewIds = [
+      ...spreads[0].leftPage.imageIds,
+      ...spreads[0].rightPage.imageIds,
+      ...spreads[1].leftPage.imageIds
+    ];
+    
+    expect(allNewIds.sort()).toEqual(originalImageIds.sort());
+  });
+
+  it('respects layoutMode spread', () => {
+    layoutModeStore.set('spread');
+    spreadsStore.set([
+      {
+        id: 1,
+        type: 'spread',
+        leftPage: { imageIds: ['img1'], currentPresetIndex: 0 },
+        rightPage: { imageIds: ['img2'], currentPresetIndex: 0 },
+        spreadPage: { imageIds: ['img3', 'img4'], currentPresetIndex: 0 },
+      }
+    ]);
+
+    shuffleAllImages();
+    
+    const spreads = get(spreadsStore);
+    // In spread mode for a spread type, only spreadPage.imageIds should be shuffled
+    expect(spreads[0].spreadPage.imageIds).toHaveLength(2);
+    expect(spreads[0].spreadPage.imageIds.sort()).toEqual(['img3', 'img4'].sort());
+    
+    // Left and right page should be untouched in this specific mode/type combo
+    expect(spreads[0].leftPage.imageIds).toEqual(['img1']);
+    expect(spreads[0].rightPage.imageIds).toEqual(['img2']);
   });
 });

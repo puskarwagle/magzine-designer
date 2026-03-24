@@ -242,11 +242,73 @@ export function addImageToCurrentSpread(imageId) {
 }
 
 /**
+ * Shuffles all images across all spreads in the album.
+ * Maintains the original number of images in each page/spread location.
+ */
+export function shuffleAllImages() {
+  const layoutMode = get(layoutModeStore);
+  
+  spreadsStore.update($spreads => {
+    const allImageIds = [];
+    const targetLocations = []; // Array of { spreadIndex, pageKey, slotIndex }
+
+    // 1. Collect all "active" image IDs across all spreads
+    $spreads.forEach((spread, spreadIndex) => {
+      const isEntrySingle = spread.type === 'single';
+      
+      const collectFromPage = (pageKey) => {
+        const pageState = spread[pageKey];
+        if (pageState && pageState.imageIds) {
+          pageState.imageIds.forEach((id, slotIndex) => {
+            allImageIds.push(id);
+            targetLocations.push({ spreadIndex, pageKey, slotIndex });
+          });
+        }
+      };
+
+      if (layoutMode === 'spread' && !isEntrySingle) {
+        collectFromPage('spreadPage');
+      } else {
+        collectFromPage('leftPage');
+        if (!isEntrySingle) {
+          collectFromPage('rightPage');
+        }
+      }
+    });
+
+    if (allImageIds.length <= 1) return $spreads;
+
+    // 2. Fisher-Yates shuffle the collected image IDs
+    for (let i = allImageIds.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [allImageIds[i], allImageIds[j]] = [allImageIds[j], allImageIds[i]];
+    }
+
+    // 3. Redistribute shuffled IDs back to the same positions
+    // Create a new array of spreads to ensure reactivity
+    const newSpreads = $spreads.map(spread => ({
+      ...spread,
+      leftPage: { ...spread.leftPage, imageIds: [...spread.leftPage.imageIds] },
+      rightPage: { ...spread.rightPage, imageIds: [...spread.rightPage.imageIds] },
+      spreadPage: { ...spread.spreadPage, imageIds: [...spread.spreadPage.imageIds] }
+    }));
+
+    targetLocations.forEach((loc, i) => {
+      newSpreads[loc.spreadIndex][loc.pageKey].imageIds[loc.slotIndex] = allImageIds[i];
+    });
+
+    return newSpreads;
+  });
+}
+
+import { layoutConfigStore } from './ui.js';
+
+/**
  * Derived store that computes the layout data for the currently active spread/page.
  */
 export const activeSpreadLayout = derived(
-  [spreadsStore, currentSpreadIndexStore, albumSettingsStore, projectStore, layoutModeStore, activePageStore],
-  ([$spreads, $currentIndex, $settings, $project, $layoutMode, $activePage]) => {
+  [spreadsStore, currentSpreadIndexStore, albumSettingsStore, projectStore, layoutModeStore, activePageStore, layoutConfigStore],
+  ([$spreads, $currentIndex, $settings, $project, $layoutMode, $activePage, $layoutConfig]) => {
     let layoutData = {
       type: 'spread',
       layoutMode: $layoutMode || 'spread',
@@ -343,7 +405,8 @@ export const activeSpreadLayout = derived(
           spreadWidthPx: totalSpreadWidthPx,
           spreadHeightPx,
           unit: unit,
-          dpi: dpi
+          dpi: dpi,
+          slotGapPx: $layoutConfig.slotGap
         });
 
         // Split spread slots into left/right page slots for KonvaPage rendering
@@ -377,7 +440,8 @@ export const activeSpreadLayout = derived(
           pageHeightPx,
           unit: unit,
           dpi: dpi,
-          isLeftPage: true
+          isLeftPage: true,
+          slotGapPx: $layoutConfig.slotGap
         });
 
         const rightSlots = isEntrySingle ? [] : LayoutEngine.applyPresetToPage({
@@ -388,7 +452,8 @@ export const activeSpreadLayout = derived(
           pageHeightPx,
           unit: unit,
           dpi: dpi,
-          isLeftPage: false
+          isLeftPage: false,
+          slotGapPx: $layoutConfig.slotGap
         });
 
         layoutData.leftPageSlots = leftSlots;

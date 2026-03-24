@@ -10,3 +10,8 @@ export const uiSettingsStore = writable({
 export const zoomStore = writable(1.0);
 export const isAutoFitStore = writable(true); // Default to true
 export const autoFitScaleStore = writable(1.0);
+
+// Layout Engine Configuration
+export const layoutConfigStore = writable({
+  slotGap: 12, // Gap between images in pixels
+});

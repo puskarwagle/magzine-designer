@@ -8,9 +8,11 @@
     addSpread,
     removeSpread,
     destroySpread,
-    isSpreadPopulated
+    isSpreadPopulated,
+    shuffleAllImages
   } from '../../stores/spreads.js';
   import { projectStore } from '../../stores/project.js';
+  import { layoutConfigStore } from '../../stores/ui.js';
   import { LayoutEngine } from '../../lib/layoutEngine.js';
 
   $: currentSpreadIndex = $currentSpreadIndexStore;
@@ -39,21 +41,7 @@
   }
 
   function shuffleImages() {
-    spreadsStore.update(spreads => {
-      const spread = spreads[currentSpreadIndex];
-      if (!spread) return spreads;
-
-      if (layoutMode === 'spread') {
-        spread.spreadPage.imageIds = LayoutEngine.shuffleImagesInPreset(spread.spreadPage.imageIds);
-      } else {
-        if (activePage === 'left') {
-          spread.leftPage.imageIds = LayoutEngine.shuffleImagesInPreset(spread.leftPage.imageIds);
-        } else {
-          spread.rightPage.imageIds = LayoutEngine.shuffleImagesInPreset(spread.rightPage.imageIds);
-        }
-      }
-      return [...spreads];
-    });
+    shuffleAllImages();
   }
 
   function prevSpread() {
@@ -167,6 +155,23 @@
       </div>
     </div>
   {/if}
+  <div class="panel-header sub">Engine Settings</div>
+
+  <div class="form-row">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+      <span class="label" style="margin: 0;">Slot Gap</span>
+      <span style="font-size: 0.75rem; color: #94a3b8;">{$layoutConfigStore.slotGap}px</span>
+    </div>
+    <input 
+      type="range" 
+      min="0" 
+      max="80" 
+      step="2"
+      value={$layoutConfigStore.slotGap}
+      on:input={(e) => layoutConfigStore.update(c => ({ ...c, slotGap: parseInt(e.target.value) }))}
+      style="width: 100%; height: 6px; background: #334155; border-radius: 3px; appearance: none; cursor: pointer;"
+    />
+  </div>
 
   <div class="panel-header sub">Actions</div>
   

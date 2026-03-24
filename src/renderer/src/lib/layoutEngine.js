@@ -257,9 +257,13 @@ function generateGenericGrid(n) {
  */
 function getPresetsForCount(imageCount) {
   return [
-    { id: `DYNAMIC-P-${imageCount}-0`, label: 'Dynamic (Auto)', imageCount, pageType: 'single', style: 'clean', slots: [] },
-    { id: `DYNAMIC-P-${imageCount}-1`, label: 'Dynamic (Horizontal)', imageCount, pageType: 'single', style: 'clean', slots: [] },
-    { id: `DYNAMIC-P-${imageCount}-2`, label: 'Dynamic (Vertical)', imageCount, pageType: 'single', style: 'clean', slots: [] },
+    { id: `DYNAMIC-P-${imageCount}-0`, label: 'Dynamic (Standard)', imageCount, pageType: 'single', style: 'clean', slots: [] },
+    { id: `DYNAMIC-P-${imageCount}-5`, label: 'Dynamic (Best Fit)', imageCount, pageType: 'single', style: 'clean', slots: [] },
+    { id: `DYNAMIC-P-${imageCount}-3`, label: 'Dynamic (Balanced)', imageCount, pageType: 'single', style: 'clean', slots: [] },
+    { id: `DYNAMIC-P-${imageCount}-4`, label: 'Dynamic (Hero)', imageCount, pageType: 'single', style: 'clean', slots: [] },
+    { id: `DYNAMIC-P-${imageCount}-6`, label: 'Dynamic (Chaos)', imageCount, pageType: 'single', style: 'clean', slots: [] },
+    { id: `FLUID-P-${imageCount}-0`, label: 'Fluid (Standard)', imageCount, pageType: 'single', style: 'clean', slots: [] },
+    { id: `FLUID-P-${imageCount}-5`, label: 'Fluid (Best Fit)', imageCount, pageType: 'single', style: 'clean', slots: [] },
   ];
 }
 
@@ -319,17 +323,30 @@ function mapImagesToSlots(imageIds, slots) {
  * @param {Object} params.customSlots - Optional manual overrides { [imageId]: {x, y, w, h} }
  * @returns {Array<{imageId: string, x: number, y: number, w: number, h: number, visible: boolean, slot: Slot|null}>}
  */
-function computeSlotRectangles({ imageIds, preset, marginBox, customSlots = {}, images = [] }) {
+function computeSlotRectangles({ imageIds, preset, marginBox, customSlots = {}, images = [], gap = 0.02 }) {
   // Handle Dynamic Layout generation
   let activePreset = preset;
-  if (preset.id.startsWith('DYNAMIC')) {
+  if (preset.id.startsWith('DYNAMIC') || preset.id.startsWith('FLUID')) {
     const pageImages = imageIds.map(id => images.find(img => img.id === id)).filter(Boolean);
     
+    // Stable vs Fluid geometry:
+    // DYNAMIC- ids use stable geometry by sorting images by ID.
+    // FLUID- ids use the provided image order, allowing shuffle to change the layout.
+    const isFluid = preset.id.startsWith('FLUID');
+    const layoutImages = isFluid 
+      ? pageImages 
+      : [...pageImages].sort((a, b) => a.id.localeCompare(b.id));
+
     // Determine strategy from ID suffix
     const parts = preset.id.split('-');
     const strategy = parseInt(parts[parts.length - 1]) || 0;
     
-    const generated = generateDynamicPreset(pageImages, preset.pageType === 'spread', { strategy });
+    const generated = generateDynamicPreset(layoutImages, {
+      isSpread: preset.pageType === 'spread',
+      strategy,
+      gap,
+      id: preset.id
+    });
     activePreset = { ...preset, slots: generated.slots };
   }
 
@@ -414,11 +431,17 @@ function applyPresetToPage({
   dpi,
   isLeftPage,
   overridePreset,
+  slotGapPx = 12,
 }) {
   const imageCount = pageState.imageIds.length;
   if (imageCount === 0) {
     return [];
   }
+
+  const marginBox = computeMarginBox(margins, pageWidthPx, pageHeightPx, unit, dpi, isLeftPage);
+  
+  // Convert pixel gap to normalized gap relative to margin box width
+  const gap = slotGapPx / marginBox.width;
 
   let preset;
   if (overridePreset) {
@@ -429,13 +452,13 @@ function applyPresetToPage({
     preset = presets[presetIndex];
   }
 
-  const marginBox = computeMarginBox(margins, pageWidthPx, pageHeightPx, unit, dpi, isLeftPage);
   const slotRects = computeSlotRectangles({
     imageIds: pageState.imageIds,
     preset,
     marginBox,
     customSlots: pageState.customSlots || {},
     images,
+    gap,
   });
 
   const imageMap = new Map(images.map(img => [img.id, img]));
@@ -653,10 +676,10 @@ function isSlotInGutter(slot) {
 function getSpreadPresetsForCount(imageCount) {
   return [
     { id: `DYNAMIC-S-${imageCount}-0`, label: 'Dynamic (Balanced)', imageCount, pageType: 'spread', style: 'clean', slots: [] },
+    { id: `DYNAMIC-S-${imageCount}-5`, label: 'Dynamic (Best Fit)', imageCount, pageType: 'spread', style: 'clean', slots: [] },
     { id: `DYNAMIC-S-${imageCount}-1`, label: 'Dynamic (Sequential)', imageCount, pageType: 'spread', style: 'clean', slots: [] },
     { id: `DYNAMIC-S-${imageCount}-2`, label: 'Dynamic (Interleaved)', imageCount, pageType: 'spread', style: 'clean', slots: [] },
-    { id: `DYNAMIC-S-${imageCount}-3`, label: 'Dynamic (H-Bias)', imageCount, pageType: 'spread', style: 'clean', slots: [] },
-    { id: `DYNAMIC-S-${imageCount}-4`, label: 'Dynamic (V-Bias)', imageCount, pageType: 'spread', style: 'clean', slots: [] },
+    { id: `FLUID-S-${imageCount}-0`, label: 'Fluid (Balanced)', imageCount, pageType: 'spread', style: 'clean', slots: [] },
   ];
 }
 
@@ -736,6 +759,7 @@ function applyPresetToSpread({
   spreadHeightPx,
   unit,
   dpi,
+  slotGapPx = 12,
 }) {
   const imageCount = spreadState.imageIds.length;
   if (imageCount === 0) {
@@ -796,6 +820,9 @@ function applyPresetToSpread({
   const marginBoxL = computeMarginBox(margins, pageWidthPx, pageHeightPx, unit, dpi, true);
   const marginBoxR = computeMarginBox(margins, pageWidthPx, pageHeightPx, unit, dpi, false);
   
+  // Convert pixel gap to normalized gap relative to page margin box width
+  const gap = slotGapPx / marginBoxL.width;
+
   // Offset marginBoxR to absolute spread space
   marginBoxR.left += rightPageStartX;
 
@@ -804,6 +831,7 @@ function applyPresetToSpread({
     preset: { id: `DYNAMIC-L-${leftIds.length}-${strategy}`, pageType: 'single', slots: [] },
     marginBox: marginBoxL,
     images,
+    gap,
   });
 
   const slotRectsR = computeSlotRectangles({
@@ -811,6 +839,7 @@ function applyPresetToSpread({
     preset: { id: `DYNAMIC-R-${rightIds.length}-${strategy}`, pageType: 'single', slots: [] },
     marginBox: marginBoxR,
     images,
+    gap,
   });
 
   const allSlotRects = [...slotRectsL, ...slotRectsR];
@@ -880,17 +909,22 @@ function shuffleImagesInPreset(imageIds, lockedIndices = new Set()) {
 /**
  * Generates a dynamic LayoutPreset using recursive binary partitioning.
  * @param {Object[]} images - Array of image objects with {id, width, height}
- * @param {boolean} isSpread - Whether this is a spread-mode layout
+ * @param {Object|boolean} options - Options object (or isSpread for backwards compat)
  * @returns {LayoutPreset}
  */
 export function generateDynamicPreset(images = [], isSpread = false, options = {}) {
+  // Support old signature (images, isSpread, options)
+  if (typeof isSpread === 'object') {
+    options = isSpread;
+    isSpread = options.isSpread || false;
+  }
   const n = images.length;
   if (n === 0) return isSpread ? generateGenericSpreadGrid(0) : generateGenericGrid(0);
 
   const strategy = options.strategy || 0;
   const ratios = images.map(img => (img.width / img.height) || 1);
   const indices = images.map((_, i) => i);
-  const gap = GAP; // Normalized gap (0.02)
+  const gap = options.gap !== undefined ? options.gap : GAP; // Normalized gap
 
   // Target rectangle in normalized coordinates
   // For spreads, we partition in a 2x1 space
@@ -914,9 +948,21 @@ export function generateDynamicPreset(images = [], isSpread = false, options = {
     mode: 'fill'
   }));
 
+  const presetId = options.id || `DYNAMIC-${isSpread ? 'S' : 'P'}-${n}-${strategy}`;
+  const labelPrefix = presetId.startsWith('FLUID') ? 'Fluid' : 'Dynamic';
+  const labels = {
+    0: 'Standard',
+    1: 'Horizontal Bonus',
+    2: 'Vertical Bonus',
+    3: 'Balanced',
+    4: 'Hero',
+    5: 'Best Fit',
+    6: 'Chaos'
+  };
+
   return {
-    id: `DYNAMIC-${isSpread ? 'S' : 'P'}-${n}-${strategy}`,
-    label: strategy === 0 ? 'Dynamic (Auto)' : (strategy === 1 ? 'Dynamic (Horizontal)' : 'Dynamic (Vertical)'),
+    id: presetId,
+    label: `${labelPrefix} (${labels[strategy] || 'Auto'})`,
     imageCount: n,
     pageType: isSpread ? 'spread' : 'single',
     slots,
@@ -932,7 +978,14 @@ function partition(indices, rect, ratios, gap, strategy = 0) {
     return [{ imageIndex: indices[0], rect }];
   }
 
-  const [groupA, groupB] = splitIntoTwo(indices, ratios);
+  // Choose splitting group strategy
+  let groupA, groupB;
+  if (strategy === 4) { // Hero: First image is hero, others are sidekicks
+    groupA = [indices[0]];
+    groupB = indices.slice(1);
+  } else {
+    [groupA, groupB] = splitIntoTwo(indices, ratios, strategy === 3);
+  }
 
   // Split direction decision
   let splitHorizontal;
@@ -940,17 +993,27 @@ function partition(indices, rect, ratios, gap, strategy = 0) {
     splitHorizontal = true;
   } else if (strategy === 2) {
     splitHorizontal = false;
+  } else if (strategy === 5) {
+    // Best Fit: Try both and choose lower total aspect ratio error
+    const scoreH = scoreSplit(groupA, groupB, rect, ratios, gap, true);
+    const scoreV = scoreSplit(groupA, groupB, rect, ratios, gap, false);
+    splitHorizontal = scoreH <= scoreV;
+  } else if (strategy === 6) {
+    // Random direction
+    splitHorizontal = Math.random() > (rect.h / (rect.w + rect.h));
   } else {
+    // Standard: Split the longer dimension
     splitHorizontal = rect.w >= rect.h;
   }
 
   if (splitHorizontal) {
     // Left/Right split
-    // Weight by sum of aspect ratios (total horizontal "desire")
     const sumA = groupA.reduce((s, i) => s + ratios[i], 0);
     const sumB = groupB.reduce((s, i) => s + ratios[i], 0);
     let ratio = sumA / (sumA + sumB);
-    ratio = Math.max(0.25, Math.min(0.75, ratio));
+    
+    if (strategy === 6) ratio += (Math.random() - 0.5) * 0.1;
+    ratio = Math.max(0.2, Math.min(0.8, ratio));
 
     const w1 = Math.round((rect.w - gap) * ratio);
     const w2 = rect.w - gap - w1;
@@ -962,11 +1025,12 @@ function partition(indices, rect, ratios, gap, strategy = 0) {
     ];
   } else {
     // Top/Bottom split
-    // Weight by sum of inverse ratios (total vertical "desire")
     const sumA = groupA.reduce((s, i) => s + (1 / ratios[i]), 0);
     const sumB = groupB.reduce((s, i) => s + (1 / ratios[i]), 0);
     let ratio = sumA / (sumA + sumB);
-    ratio = Math.max(0.25, Math.min(0.75, ratio));
+
+    if (strategy === 6) ratio += (Math.random() - 0.5) * 0.1;
+    ratio = Math.max(0.2, Math.min(0.8, ratio));
 
     const h1 = Math.round((rect.h - gap) * ratio);
     const h2 = rect.h - gap - h1;
@@ -979,7 +1043,34 @@ function partition(indices, rect, ratios, gap, strategy = 0) {
   }
 }
 
-function splitIntoTwo(indices, ratios) {
+/**
+ * Scores a potential split by estimating image fitting errors.
+ */
+function scoreSplit(g1, g2, rect, ratios, gap, isHorizontal) {
+  if (isHorizontal) {
+    const sumA = g1.reduce((s, i) => s + ratios[i], 0);
+    const sumB = g2.reduce((s, i) => s + ratios[i], 0);
+    const ratio = Math.max(0.2, Math.min(0.8, sumA / (sumA + sumB)));
+    const w1 = (rect.w - gap) * ratio;
+    const w2 = rect.w - gap - w1;
+    // Estimated error: How well do the group-summed ratios fit the resulting rectangles?
+    const err1 = Math.abs((w1 / rect.h) - sumA) / sumA;
+    const err2 = Math.abs((w2 / rect.h) - sumB) / sumB;
+    return err1 + err2;
+  } else {
+    const sumA = g1.reduce((s, i) => s + (1 / ratios[i]), 0);
+    const sumB = g2.reduce((s, i) => s + (1 / ratios[i]), 0);
+    const ratio = Math.max(0.2, Math.min(0.8, sumA / (sumA + sumB)));
+    const h1 = (rect.h - gap) * ratio;
+    const h2 = rect.h - gap - h1;
+    // In vertical split, ideal inverse ratio is Sum(1/ri). Rect inverse ratio is h/w.
+    const err1 = Math.abs((h1 / rect.w) - sumA) / sumA;
+    const err2 = Math.abs((h2 / rect.w) - sumB) / sumB;
+    return err1 + err2;
+  }
+}
+
+function splitIntoTwo(indices, ratios, balanced = false) {
   if (indices.length === 2) return [[indices[0]], [indices[1]]];
 
   const sorted = [...indices].sort((a, b) => ratios[a] - ratios[b]);
@@ -989,13 +1080,28 @@ function splitIntoTwo(indices, ratios) {
   for (let s = 1; s < sorted.length; s++) {
     const g1 = sorted.slice(0, s);
     const g2 = sorted.slice(s);
-    const score = groupVariance(g1, ratios) + groupVariance(g2, ratios);
-    if (score < bestScore) {
-      bestScore = score;
+    
+    // Robust split: minimise sum of absolute deviations from median (L1)
+    const score = groupL1Error(g1, ratios) + groupL1Error(g2, ratios);
+    
+    // Optional balancing: penalise off-center splits
+    const balancePenalty = balanced ? Math.abs(g1.length - g2.length) * 0.1 : 0;
+    
+    const finalScore = score + balancePenalty;
+
+    if (finalScore < bestScore) {
+      bestScore = finalScore;
       bestSplit = s;
     }
   }
   return [sorted.slice(0, bestSplit), sorted.slice(bestSplit)];
+}
+
+function groupL1Error(indices, ratios) {
+  if (indices.length <= 1) return 0;
+  const vals = indices.map(i => ratios[i]).sort((a,b) => a - b);
+  const median = vals[Math.floor(vals.length / 2)];
+  return vals.reduce((s, v) => s + Math.abs(v - median), 0);
 }
 
 function groupVariance(indices, ratios) {
