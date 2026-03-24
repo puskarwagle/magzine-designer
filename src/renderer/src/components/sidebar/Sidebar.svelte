@@ -118,8 +118,8 @@
   }
 
   /* Responsive layout overrides (via global for parent classes) */
-  :global(#app-container.menu-top) .sidebar,
-  :global(#app-container.menu-bottom) .sidebar {
+  :global(.workspace.menu-top) .sidebar,
+  :global(.workspace.menu-bottom) .sidebar {
     width: auto;
     max-width: none;
     height: 30vh;
@@ -129,8 +129,8 @@
     transition: height 0.3s cubic-bezier(0.4, 0, 0.2, 1), min-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
-  :global(#app-container.menu-top) .sidebar-nav,
-  :global(#app-container.menu-bottom) .sidebar-nav {
+  :global(.workspace.menu-top) .sidebar-nav,
+  :global(.workspace.menu-bottom) .sidebar-nav {
     width: 100%;
     height: 64px;
     border-right: none;
@@ -140,14 +140,14 @@
     flex-direction: row;
   }
 
-  :global(#app-container.menu-collapsed) .sidebar {
+  :global(.workspace.menu-collapsed) .sidebar {
     width: 64px;
     min-width: 64px;
     max-width: 64px;
     padding: 0; /* Let nav handle its own padding */
   }
 
-  :global(#app-container.menu-collapsed) .sidebar-content {
+  :global(.workspace.menu-collapsed) .sidebar-content {
     opacity: 0;
     visibility: hidden;
     padding-left: 0;
@@ -156,8 +156,8 @@
     pointer-events: none;
   }
 
-  :global(#app-container.menu-collapsed.menu-top) .sidebar,
-  :global(#app-container.menu-collapsed.menu-bottom) .sidebar {
+  :global(.workspace.menu-collapsed.menu-top) .sidebar,
+  :global(.workspace.menu-collapsed.menu-bottom) .sidebar {
     width: 100%;
     height: 64px;
     min-height: 64px;

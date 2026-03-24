@@ -1,10 +1,87 @@
-const { app, BrowserWindow, dialog, ipcMain, protocol, net } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, protocol, net, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
 const { registerIpcHandlers } = require('./ipcHandlers.js');
 
 let mainWindow;
+
+function createMenu() {
+  const template = [
+    {
+      label: 'File',
+      submenu: [
+        {
+          label: 'New Album',
+          accelerator: 'CmdOrCtrl+N',
+          click: () => mainWindow.webContents.send('menu-action', 'new-album')
+        },
+        {
+          label: 'Open Album...',
+          accelerator: 'CmdOrCtrl+O',
+          click: () => mainWindow.webContents.send('menu-action', 'open-album')
+        },
+        { type: 'separator' },
+        {
+          label: 'Save',
+          accelerator: 'CmdOrCtrl+S',
+          click: () => mainWindow.webContents.send('menu-action', 'save-album')
+        },
+        {
+          label: 'Save As...',
+          accelerator: 'CmdOrCtrl+Shift+S',
+          click: () => mainWindow.webContents.send('menu-action', 'save-album-as')
+        },
+        {
+          label: 'Rename Album...',
+          click: () => mainWindow.webContents.send('menu-action', 'rename-album')
+        },
+        { type: 'separator' },
+        {
+          label: 'Exit',
+          role: 'quit'
+        }
+      ]
+    },
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'selectAll' }
+      ]
+    },
+    {
+      label: 'View',
+      submenu: [
+        { role: 'reload' },
+        { role: 'forceReload' },
+        { role: 'toggleDevTools' },
+        { type: 'separator' },
+        { role: 'resetZoom' },
+        { role: 'zoomIn' },
+        { role: 'zoomOut' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' }
+      ]
+    },
+    {
+      label: 'Window',
+      submenu: [
+        { role: 'minimize' },
+        { role: 'zoom' },
+        { role: 'close' }
+      ]
+    }
+  ];
+
+  const menu = Menu.buildFromTemplate(template);
+  Menu.setApplicationMenu(menu);
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -39,6 +116,10 @@ registerIpcHandlers({
   getMainWindow: () => mainWindow,
 });
 
+ipcMain.on('set-window-title', (event, title) => {
+  if (mainWindow) mainWindow.setTitle(title);
+});
+
 if (process.env.NODE_ENV !== 'test') {
   app.whenReady().then(() => {
     // Register custom protocol for local images
@@ -48,6 +129,7 @@ if (process.env.NODE_ENV !== 'test') {
       return net.fetch(pathToFileURL(decodeURIComponent(filePath)).toString());
     });
 
+    createMenu();
     createWindow();
 
     app.on('activate', () => {

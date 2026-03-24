@@ -93,8 +93,8 @@
     background: #334155;
   }
 
-  :global(#app-container.menu-top) .nav-scroll-container,
-  :global(#app-container.menu-bottom) .nav-scroll-container {
+  :global(.workspace.menu-top) .nav-scroll-container,
+  :global(.workspace.menu-bottom) .nav-scroll-container {
     flex-direction: row;
     align-items: center;
     justify-content: flex-start;
@@ -115,8 +115,8 @@
     border-top: 1px solid #1e293b;
   }
 
-  :global(#app-container.menu-top) .nav-footer,
-  :global(#app-container.menu-bottom) .nav-footer {
+  :global(.workspace.menu-top) .nav-footer,
+  :global(.workspace.menu-bottom) .nav-footer {
     border-top: none;
     border-left: 1px solid #1e293b;
     padding-top: 0;
@@ -145,13 +145,13 @@
     position: relative;
   }
 
-  :global(#app-container.menu-top) .nav-btn,
-  :global(#app-container.menu-bottom) .nav-btn {
+  :global(.workspace.menu-top) .nav-btn,
+  :global(.workspace.menu-bottom) .nav-btn {
     width: 44px;
     height: 44px;
   }
 
-  :global(#app-container.menu-collapsed) .nav-btn {
+  :global(.workspace.menu-collapsed) .nav-btn {
     justify-content: center;
     padding: 0;
   }
@@ -187,11 +187,11 @@
     transform: rotate(180deg);
   }
 
-  :global(#app-container.menu-top) .collapse-btn.is-collapsed .nav-icon {
+  :global(.workspace.menu-top) .collapse-btn.is-collapsed .nav-icon {
     transform: rotate(-90deg);
   }
   
-  :global(#app-container.menu-bottom) .collapse-btn.is-collapsed .nav-icon {
+  :global(.workspace.menu-bottom) .collapse-btn.is-collapsed .nav-icon {
     transform: rotate(90deg);
   }
 </style>

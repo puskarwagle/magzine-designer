@@ -31,26 +31,35 @@ body {
 #app,
 #app-container {
   display: flex;
+  flex-direction: column;
   height: 100vh;
   width: 100vw;
   overflow: hidden;
 }
 
-#app-container.menu-left,
-#app-container.menu-right {
+/* .workspace holds the sidebar + preview and carries the menu orientation */
+.workspace {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.workspace.menu-left,
+.workspace.menu-right {
   flex-direction: row;
 }
 
-#app-container.menu-right {
+.workspace.menu-right {
   flex-direction: row-reverse;
 }
 
-#app-container.menu-top,
-#app-container.menu-bottom {
+.workspace.menu-top,
+.workspace.menu-bottom {
   flex-direction: column;
 }
 
-#app-container.menu-bottom {
+.workspace.menu-bottom {
   flex-direction: column-reverse;
 }
 

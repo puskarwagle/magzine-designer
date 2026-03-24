@@ -1,0 +1,151 @@
+{
+  "version": 1,
+  "albumName": "Untitled Album",
+  "savedAt": "2026-03-24T06:50:52.799Z",
+  "settings": {
+    "unit": "in",
+    "dpi": 300,
+    "pageWidth": 9,
+    "pageHeight": 12,
+    "presetId": "18x12",
+    "bindingType": "lay-flat",
+    "globalMargins": {
+      "top": 0.5,
+      "bottom": 0.5,
+      "inner": 0.5,
+      "outer": 0.5
+    },
+    "includeCover": true,
+    "paperThickness": 0.25
+  },
+  "layoutConfig": {
+    "slotGap": 12
+  },
+  "ui": {
+    "currentMenu": "new",
+    "layoutMode": "spread",
+    "activePage": "left"
+  },
+  "project": {
+    "images": [
+      {
+        "id": "3ca32b1b80ae",
+        "fileName": "WhatsApp Image 2026-03-24 at 9.46.56 AM(1).jpeg",
+        "path": "media:///home/wagle/Downloads/rabi/WhatsApp Image 2026-03-24 at 9.46.56 AM(1).jpeg",
+        "source": "rabi",
+        "folderPath": "/home/wagle/Downloads/rabi"
+      },
+      {
+        "id": "571593ad2917",
+        "fileName": "WhatsApp Image 2026-03-24 at 9.46.56 AM.jpeg",
+        "path": "media:///home/wagle/Downloads/rabi/WhatsApp Image 2026-03-24 at 9.46.56 AM.jpeg",
+        "source": "rabi",
+        "folderPath": "/home/wagle/Downloads/rabi"
+      },
+      {
+        "id": "b32081d5c0cc",
+        "fileName": "WhatsApp Image 2026-03-24 at 9.46.58 AM.jpeg",
+        "path": "media:///home/wagle/Downloads/rabi/WhatsApp Image 2026-03-24 at 9.46.58 AM.jpeg",
+        "source": "rabi",
+        "folderPath": "/home/wagle/Downloads/rabi"
+      },
+      {
+        "id": "1e9f8fd71115",
+        "fileName": "WhatsApp Image 2026-03-24 at 9.47.00 AM(1).jpeg",
+        "path": "media:///home/wagle/Downloads/rabi/WhatsApp Image 2026-03-24 at 9.47.00 AM(1).jpeg",
+        "source": "rabi",
+        "folderPath": "/home/wagle/Downloads/rabi"
+      },
+      {
+        "id": "586bf9dbd04d",
+        "fileName": "WhatsApp Image 2026-03-24 at 9.47.00 AM.jpeg",
+        "path": "media:///home/wagle/Downloads/rabi/WhatsApp Image 2026-03-24 at 9.47.00 AM.jpeg",
+        "source": "rabi",
+        "folderPath": "/home/wagle/Downloads/rabi"
+      },
+      {
+        "id": "5a6d41c3b5a7",
+        "fileName": "WhatsApp Image 2026-03-24 at 9.47.01 AM(1).jpeg",
+        "path": "media:///home/wagle/Downloads/rabi/WhatsApp Image 2026-03-24 at 9.47.01 AM(1).jpeg",
+        "source": "rabi",
+        "folderPath": "/home/wagle/Downloads/rabi"
+      },
+      {
+        "id": "bc1a0f1e6a83",
+        "fileName": "WhatsApp Image 2026-03-24 at 9.47.01 AM.jpeg",
+        "path": "media:///home/wagle/Downloads/rabi/WhatsApp Image 2026-03-24 at 9.47.01 AM.jpeg",
+        "source": "rabi",
+        "folderPath": "/home/wagle/Downloads/rabi"
+      },
+      {
+        "id": "0f8d006f385c",
+        "fileName": "WhatsApp Image 2026-03-24 at 9.47.02 AM.jpeg",
+        "path": "media:///home/wagle/Downloads/rabi/WhatsApp Image 2026-03-24 at 9.47.02 AM.jpeg",
+        "source": "rabi",
+        "folderPath": "/home/wagle/Downloads/rabi"
+      },
+      {
+        "id": "bd7a940a423a",
+        "fileName": "WhatsApp Image 2026-03-24 at 9.47.03 AM(1).jpeg",
+        "path": "media:///home/wagle/Downloads/rabi/WhatsApp Image 2026-03-24 at 9.47.03 AM(1).jpeg",
+        "source": "rabi",
+        "folderPath": "/home/wagle/Downloads/rabi"
+      },
+      {
+        "id": "b38a561c0537",
+        "fileName": "WhatsApp Image 2026-03-24 at 9.47.03 AM.jpeg",
+        "path": "media:///home/wagle/Downloads/rabi/WhatsApp Image 2026-03-24 at 9.47.03 AM.jpeg",
+        "source": "rabi",
+        "folderPath": "/home/wagle/Downloads/rabi"
+      },
+      {
+        "id": "e5beb2018399",
+        "fileName": "WhatsApp Image 2026-03-24 at 9.47.04 AM.jpeg",
+        "path": "media:///home/wagle/Downloads/rabi/WhatsApp Image 2026-03-24 at 9.47.04 AM.jpeg",
+        "source": "rabi",
+        "folderPath": "/home/wagle/Downloads/rabi"
+      }
+    ],
+    "activeFolders": [
+      "rabi"
+    ],
+    "activeImages": []
+  },
+  "spreads": [
+    {
+      "id": 1774334884991.6946,
+      "type": "spread",
+      "imageIds": [
+        "e5beb2018399",
+        "586bf9dbd04d",
+        "571593ad2917"
+      ],
+      "currentPresetIndex": 4,
+      "useCustomMargins": false,
+      "margins": {
+        "top": 0.5,
+        "bottom": 0.5,
+        "inner": 0.5,
+        "outer": 0.5
+      }
+    },
+    {
+      "id": 1774334968415.142,
+      "type": "spread",
+      "imageIds": [
+        "bd7a940a423a",
+        "1e9f8fd71115",
+        "bc1a0f1e6a83"
+      ],
+      "currentPresetIndex": 4,
+      "useCustomMargins": false,
+      "margins": {
+        "top": 0.5,
+        "bottom": 0.5,
+        "inner": 0.5,
+        "outer": 0.5
+      }
+    }
+  ],
+  "currentSpreadIndex": 1
+}

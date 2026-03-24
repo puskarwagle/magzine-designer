@@ -1,0 +1,371 @@
+{
+  "version": 1,
+  "albumName": "testFirst",
+  "savedAt": "2026-03-24T06:47:48.377Z",
+  "settings": {
+    "unit": "in",
+    "dpi": 300,
+    "pageWidth": 9,
+    "pageHeight": 12,
+    "presetId": "18x12",
+    "bindingType": "lay-flat",
+    "globalMargins": {
+      "top": 0.5,
+      "bottom": 0.5,
+      "inner": 0.5,
+      "outer": 0.5
+    },
+    "includeCover": true,
+    "paperThickness": 0.25
+  },
+  "layoutConfig": {
+    "slotGap": 12
+  },
+  "ui": {
+    "currentMenu": "size",
+    "layoutMode": "spread",
+    "activePage": "left"
+  },
+  "project": {
+    "images": [
+      {
+        "id": "69aee770f477",
+        "fileName": "46&2.png",
+        "path": "media:///home/wagle/Pictures/46&2.png",
+        "source": "Pictures",
+        "folderPath": "/home/wagle/Pictures"
+      },
+      {
+        "id": "edffb79b3f54",
+        "fileName": "547006037_1379449227517304_4345013670191337761_n.jpg",
+        "path": "media:///home/wagle/Pictures/547006037_1379449227517304_4345013670191337761_n.jpg",
+        "source": "Pictures",
+        "folderPath": "/home/wagle/Pictures"
+      },
+      {
+        "id": "8554ecb5baa6",
+        "fileName": "553139694_2044978789651558_5610017608789434960_n.jpg",
+        "path": "media:///home/wagle/Pictures/553139694_2044978789651558_5610017608789434960_n.jpg",
+        "source": "Pictures",
+        "folderPath": "/home/wagle/Pictures"
+      },
+      {
+        "id": "18d438534b77",
+        "fileName": "583473673_3020831741638152_5116063439219265483_n.jpg",
+        "path": "media:///home/wagle/Pictures/583473673_3020831741638152_5116063439219265483_n.jpg",
+        "source": "Pictures",
+        "folderPath": "/home/wagle/Pictures"
+      },
+      {
+        "id": "ad18e2a5a38e",
+        "fileName": "John_Atkinson_Grimshaw,_At_The_Park_Gate,_1878.jpg",
+        "path": "media:///home/wagle/Pictures/John_Atkinson_Grimshaw,_At_The_Park_Gate,_1878.jpg",
+        "source": "Pictures",
+        "folderPath": "/home/wagle/Pictures"
+      },
+      {
+        "id": "ac3819c3604b",
+        "fileName": "Nimbarkacharya.jpg",
+        "path": "media:///home/wagle/Pictures/Nimbarkacharya.jpg",
+        "source": "Pictures",
+        "folderPath": "/home/wagle/Pictures"
+      },
+      {
+        "id": "a6e1dc80d658",
+        "fileName": "Screenshot 2025-06-14 at 11-27-25 (1) ब्रजकी होली😍 - YouTube.png",
+        "path": "media:///home/wagle/Pictures/Screenshot 2025-06-14 at 11-27-25 (1) ब्रजकी होली😍 - YouTube.png",
+        "source": "Pictures",
+        "folderPath": "/home/wagle/Pictures"
+      },
+      {
+        "id": "54d7c64d4ada",
+        "fileName": "Screenshot 2025-06-18 at 15-39-27 Dedicated Server Hosting 45% OFF on Best Dedicated Server.png",
+        "path": "media:///home/wagle/Pictures/Screenshot 2025-06-18 at 15-39-27 Dedicated Server Hosting 45% OFF on Best Dedicated Server.png",
+        "source": "Pictures",
+        "folderPath": "/home/wagle/Pictures"
+      },
+      {
+        "id": "0a02d23bc4dc",
+        "fileName": "Screenshot 2025-07-15 at 00-39-59 Server Not Found.png",
+        "path": "media:///home/wagle/Pictures/Screenshot 2025-07-15 at 00-39-59 Server Not Found.png",
+        "source": "Pictures",
+        "folderPath": "/home/wagle/Pictures"
+      },
+      {
+        "id": "990e8e430d80",
+        "fileName": "Screenshot 2025-07-23 at 17-57-13 Vrindavan Branch State Bank of India (SBI) IFSC Code MICR BSR SWIFT Code Mathura.png",
+        "path": "media:///home/wagle/Pictures/Screenshot 2025-07-23 at 17-57-13 Vrindavan Branch State Bank of India (SBI) IFSC Code MICR BSR SWIFT Code Mathura.png",
+        "source": "Pictures",
+        "folderPath": "/home/wagle/Pictures"
+      },
+      {
+        "id": "5017deb920cc",
+        "fileName": "Screenshot 2025-08-01 at 19-17-38 Superfood Mix Design Layout - Claude.png",
+        "path": "media:///home/wagle/Pictures/Screenshot 2025-08-01 at 19-17-38 Superfood Mix Design Layout - Claude.png",
+        "source": "Pictures",
+        "folderPath": "/home/wagle/Pictures"
+      },
+      {
+        "id": "7953a073e1b0",
+        "fileName": "Screenshot 2025-08-01 at 19-21-46 Superfood Mix Design Layout - Claude.png",
+        "path": "media:///home/wagle/Pictures/Screenshot 2025-08-01 at 19-21-46 Superfood Mix Design Layout - Claude.png",
+        "source": "Pictures",
+        "folderPath": "/home/wagle/Pictures"
+      },
+      {
+        "id": "0ba4a0085dba",
+        "fileName": "Screenshot 2025-08-01 at 19-34-08 Shopping list update.png",
+        "path": "media:///home/wagle/Pictures/Screenshot 2025-08-01 at 19-34-08 Shopping list update.png",
+        "source": "Pictures",
+        "folderPath": "/home/wagle/Pictures"
+      },
+      {
+        "id": "53aa37d5fbe7",
+        "fileName": "Screenshot 2025-08-09 at 16-52-22 puskarwagle_seek-auto-bot at playwright.png",
+        "path": "media:///home/wagle/Pictures/Screenshot 2025-08-09 at 16-52-22 puskarwagle_seek-auto-bot at playwright.png",
+        "source": "Pictures",
+        "folderPath": "/home/wagle/Pictures"
+      },
+      {
+        "id": "faf8dd297221",
+        "fileName": "Screenshot 2025-08-31 at 18-15-10 (20 ) Facebook.png",
+        "path": "media:///home/wagle/Pictures/Screenshot 2025-08-31 at 18-15-10 (20 ) Facebook.png",
+        "source": "Pictures",
+        "folderPath": "/home/wagle/Pictures"
+      },
+      {
+        "id": "9484e7d733c4",
+        "fileName": "Screenshot 2025-10-03 at 23-55-19 Facebook.png",
+        "path": "media:///home/wagle/Pictures/Screenshot 2025-10-03 at 23-55-19 Facebook.png",
+        "source": "Pictures",
+        "folderPath": "/home/wagle/Pictures"
+      },
+      {
+        "id": "5f5639d7f0cb",
+        "fileName": "Screenshot 2025-10-08 at 20-43-44 (2) Instagram.png",
+        "path": "media:///home/wagle/Pictures/Screenshot 2025-10-08 at 20-43-44 (2) Instagram.png",
+        "source": "Pictures",
+        "folderPath": "/home/wagle/Pictures"
+      },
+      {
+        "id": "ac289afa1847",
+        "fileName": "Screenshot 2025-10-09 at 20-39-06 (1) Instagram.png",
+        "path": "media:///home/wagle/Pictures/Screenshot 2025-10-09 at 20-39-06 (1) Instagram.png",
+        "source": "Pictures",
+        "folderPath": "/home/wagle/Pictures"
+      },
+      {
+        "id": "5f53505d5a69",
+        "fileName": "Screenshot 2025-11-20 at 20-05-21 Make a New Logo Logo Editor - Logomakerr.ai(1).png",
+        "path": "media:///home/wagle/Pictures/Screenshot 2025-11-20 at 20-05-21 Make a New Logo Logo Editor - Logomakerr.ai(1).png",
+        "source": "Pictures",
+        "folderPath": "/home/wagle/Pictures"
+      },
+      {
+        "id": "ec196b52517b",
+        "fileName": "Screenshot 2025-11-20 at 20-05-21 Make a New Logo Logo Editor - Logomakerr.ai.png",
+        "path": "media:///home/wagle/Pictures/Screenshot 2025-11-20 at 20-05-21 Make a New Logo Logo Editor - Logomakerr.ai.png",
+        "source": "Pictures",
+        "folderPath": "/home/wagle/Pictures"
+      },
+      {
+        "id": "98537e2f9ec7",
+        "fileName": "WhatsApp Image 2025-08-09 at 6.22.55 PM.jpeg",
+        "path": "media:///home/wagle/Pictures/WhatsApp Image 2025-08-09 at 6.22.55 PM.jpeg",
+        "source": "Pictures",
+        "folderPath": "/home/wagle/Pictures"
+      },
+      {
+        "id": "4b596c0e36b3",
+        "fileName": "adhd_xa_ki_xaina.jpg",
+        "path": "media:///home/wagle/Pictures/adhd_xa_ki_xaina.jpg",
+        "source": "Pictures",
+        "folderPath": "/home/wagle/Pictures"
+      },
+      {
+        "id": "277a4f953bee",
+        "fileName": "adhddontcare.jpg",
+        "path": "media:///home/wagle/Pictures/adhddontcare.jpg",
+        "source": "Pictures",
+        "folderPath": "/home/wagle/Pictures"
+      },
+      {
+        "id": "22cf3768cee2",
+        "fileName": "au3p44pu9fdf1.jpeg",
+        "path": "media:///home/wagle/Pictures/au3p44pu9fdf1.jpeg",
+        "source": "Pictures",
+        "folderPath": "/home/wagle/Pictures"
+      },
+      {
+        "id": "c56c79120389",
+        "fileName": "back-off-jhole.jpg",
+        "path": "media:///home/wagle/Pictures/back-off-jhole.jpg",
+        "source": "Pictures",
+        "folderPath": "/home/wagle/Pictures"
+      },
+      {
+        "id": "38683af1d193",
+        "fileName": "black-rustic-blank-chalkboard-background.jpg",
+        "path": "media:///home/wagle/Pictures/black-rustic-blank-chalkboard-background.jpg",
+        "source": "Pictures",
+        "folderPath": "/home/wagle/Pictures"
+      },
+      {
+        "id": "cbfb590bbf0d",
+        "fileName": "black_board_grunge_background-min.jpg",
+        "path": "media:///home/wagle/Pictures/black_board_grunge_background-min.jpg",
+        "source": "Pictures",
+        "folderPath": "/home/wagle/Pictures"
+      },
+      {
+        "id": "e8ec59e06b9d",
+        "fileName": "catDive.jpeg",
+        "path": "media:///home/wagle/Pictures/catDive.jpeg",
+        "source": "Pictures",
+        "folderPath": "/home/wagle/Pictures"
+      },
+      {
+        "id": "fd3118b0164f",
+        "fileName": "entertainedWhileEating.jpeg",
+        "path": "media:///home/wagle/Pictures/entertainedWhileEating.jpeg",
+        "source": "Pictures",
+        "folderPath": "/home/wagle/Pictures"
+      },
+      {
+        "id": "59953c4c8790",
+        "fileName": "fuckneurotypicals.jpg",
+        "path": "media:///home/wagle/Pictures/fuckneurotypicals.jpg",
+        "source": "Pictures",
+        "folderPath": "/home/wagle/Pictures"
+      },
+      {
+        "id": "24efbbb66646",
+        "fileName": "gehendra-aditi.png",
+        "path": "media:///home/wagle/Pictures/gehendra-aditi.png",
+        "source": "Pictures",
+        "folderPath": "/home/wagle/Pictures"
+      },
+      {
+        "id": "01bbd4b1f046",
+        "fileName": "gehendra2.png",
+        "path": "media:///home/wagle/Pictures/gehendra2.png",
+        "source": "Pictures",
+        "folderPath": "/home/wagle/Pictures"
+      },
+      {
+        "id": "f2b51b830d82",
+        "fileName": "hatethisbody.jpg",
+        "path": "media:///home/wagle/Pictures/hatethisbody.jpg",
+        "source": "Pictures",
+        "folderPath": "/home/wagle/Pictures"
+      },
+      {
+        "id": "cdc763fd1a84",
+        "fileName": "holly-berry.png",
+        "path": "media:///home/wagle/Pictures/holly-berry.png",
+        "source": "Pictures",
+        "folderPath": "/home/wagle/Pictures"
+      },
+      {
+        "id": "3d32d88cbf58",
+        "fileName": "purpuromagham.jpg",
+        "path": "media:///home/wagle/Pictures/purpuromagham.jpg",
+        "source": "Pictures",
+        "folderPath": "/home/wagle/Pictures"
+      },
+      {
+        "id": "9ef933b04dba",
+        "fileName": "puskar.jpg",
+        "path": "media:///home/wagle/Pictures/puskar.jpg",
+        "source": "Pictures",
+        "folderPath": "/home/wagle/Pictures"
+      },
+      {
+        "id": "f7021d8f04b5",
+        "fileName": "ragini-CQ65_l-removebg-preview.png",
+        "path": "media:///home/wagle/Pictures/ragini-CQ65_l-removebg-preview.png",
+        "source": "Pictures",
+        "folderPath": "/home/wagle/Pictures"
+      },
+      {
+        "id": "f9f96de35c3b",
+        "fileName": "resume-template.png",
+        "path": "media:///home/wagle/Pictures/resume-template.png",
+        "source": "Pictures",
+        "folderPath": "/home/wagle/Pictures"
+      },
+      {
+        "id": "8b3a809c099f",
+        "fileName": "sanakadik.jpg",
+        "path": "media:///home/wagle/Pictures/sanakadik.jpg",
+        "source": "Pictures",
+        "folderPath": "/home/wagle/Pictures"
+      },
+      {
+        "id": "ad2373b1c5c4",
+        "fileName": "say_no_to_child_marriage.jpg",
+        "path": "media:///home/wagle/Pictures/say_no_to_child_marriage.jpg",
+        "source": "Pictures",
+        "folderPath": "/home/wagle/Pictures"
+      },
+      {
+        "id": "5b68217a44ce",
+        "fileName": "text.png",
+        "path": "media:///home/wagle/Pictures/text.png",
+        "source": "Pictures",
+        "folderPath": "/home/wagle/Pictures"
+      },
+      {
+        "id": "35b7b42cdd0c",
+        "fileName": "time.jpg",
+        "path": "media:///home/wagle/Pictures/time.jpg",
+        "source": "Pictures",
+        "folderPath": "/home/wagle/Pictures"
+      }
+    ],
+    "activeFolders": [
+      "Pictures"
+    ],
+    "activeImages": [
+      "98537e2f9ec7"
+    ]
+  },
+  "spreads": [
+    {
+      "id": 1774332681103.3057,
+      "type": "spread",
+      "imageIds": [
+        "69aee770f477",
+        "ac3819c3604b",
+        "0ba4a0085dba",
+        "18d438534b77"
+      ],
+      "currentPresetIndex": 4,
+      "useCustomMargins": false,
+      "margins": {
+        "top": 0.5,
+        "bottom": 0.5,
+        "inner": 0.5,
+        "outer": 0.5
+      }
+    },
+    {
+      "id": 1774332768119.8457,
+      "type": "spread",
+      "imageIds": [
+        "5f53505d5a69",
+        "a6e1dc80d658",
+        "ac3819c3604b"
+      ],
+      "currentPresetIndex": 3,
+      "useCustomMargins": false,
+      "margins": {
+        "top": 0.5,
+        "bottom": 0.5,
+        "inner": 0.5,
+        "outer": 0.5
+      }
+    }
+  ],
+  "currentSpreadIndex": 1
+}

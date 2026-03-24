@@ -43,7 +43,8 @@ export const addImagesToProject = (newFolderData) => {
     const folderName = newFolderData.folderPath.split(/[/\\]/).pop();
     const taggedImages = newFolderData.images.map(img => ({
       ...img,
-      source: folderName
+      source: folderName,
+      folderPath: newFolderData.folderPath
     }));
 
     // Filter out duplicates based on path if necessary, or just append

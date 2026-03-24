@@ -22,8 +22,8 @@
   }
 
   /* Horizontal Menu Layout overrides */
-  :global(#app-container.menu-top) .sidebar-panel.active,
-  :global(#app-container.menu-bottom) .sidebar-panel.active {
+  :global(.workspace.menu-top) .sidebar-panel.active,
+  :global(.workspace.menu-bottom) .sidebar-panel.active {
     display: flex;
     flex-direction: row;
     flex-wrap: wrap;
