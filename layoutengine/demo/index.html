@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sampat — Layout Engine V6 Demo</title>
+    <link rel="stylesheet" href="v6demo.css">
+    <link rel="icon" href="data:,">
+</head>
+
+<body>
+    <div class="app">
+
+        <div class="header">
+            <h1>Sampat</h1>
+            <span class="ver">engine v6</span>
+            <span class="sub">BSP · polygon slots · render graph</span>
+        </div>
+
+        <div class="controls">
+            <!-- Row 1: 8 Items -->
+            <div class="ctrl-row">
+                <div class="ctrl">
+                    <span class="val" id="imgCountVal">4</span>
+                    <input type="range" id="imgCount" min="1" max="9" value="4" step="1">
+                    <label>images</label>
+                </div>
+                <div class="ctrl">
+                    <span class="val" id="widthVal">820</span>
+                    <input type="range" id="widthSlider" min="400" max="1200" value="820" step="10">
+                    <label>width</label>
+                </div>
+                <div class="ctrl">
+                    <span class="val" id="heightVal">460</span>
+                    <input type="range" id="heightSlider" min="300" max="800" value="460" step="10">
+                    <label>height</label>
+                </div>
+                <div class="ctrl">
+                    <span class="val" id="gapVal">5</span>
+                    <input type="range" id="gapSlider" min="0" max="20" value="5" step="1">
+                    <label>gap</label>
+                </div>
+                <div class="ctrl">
+                    <span class="val" id="bleedVal">0</span>
+                    <input type="range" id="bleedSlider" min="0" max="12" value="0" step="1">
+                    <label>bleed</label>
+                </div>
+                <div class="ctrl">
+                    <div style="height:12px"></div> <!-- spacer for val -->
+                    <select id="ratioPreset">
+                        <option value="mixed">mixed</option>
+                        <option value="portrait">portrait</option>
+                        <option value="landscape">landscape</option>
+                        <option value="square">square</option>
+                        <option value="random">random</option>
+                    </select>
+                    <label>ratios</label>
+                </div>
+                <div class="ctrl" id="spreadToggle">
+                    <div style="height:12px"></div>
+                    <div class="toggle-ui">
+                        <div class="thumb"></div>
+                        <span class="icon single">▯</span>
+                        <span class="icon double">▯▯</span>
+                    </div>
+                    <label>spread</label>
+                </div>
+                <div class="ctrl">
+                    <span class="val" id="spineVal">20</span>
+                    <input type="range" id="spineSlider" min="0" max="60" value="20" step="1">
+                    <label>spine</label>
+                </div>
+            </div>
+
+            <!-- Row 2: 7 Items (Shuffle in center) -->
+            <div class="ctrl-row bottom">
+                <div class="ctrl">
+                    <span class="val" id="marginVal">20</span>
+                    <input type="range" id="marginSlider" min="0" max="100" value="20" step="1">
+                    <label>margin</label>
+                </div>
+                <button class="btn" id="btnUndo" disabled title="Undo">↶</button>
+                <button class="btn icon-btn" title="Help">?</button>
+                <button class="btn shuffle-btn" id="btnShuffle" title="Shuffle">↺</button>
+                <button class="btn icon-btn" title="Settings">⚙</button>
+                <button class="btn" id="btnRedo" disabled title="Redo">↷</button>
+                <div class="ctrl">
+                    <div style="height:12px"></div>
+                    <div class="history-dots" id="historyDots"></div>
+                    <label>history</label>
+                </div>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="c" width="820" height="460"></canvas>
+            <div class="canvas-overlay" id="overlayText">hover a slot</div>
+        </div>
+
+        <div class="stats">
+            <div class="stat">
+                <div class="stat-label">avg ratio error</div>
+                <div class="stat-val" id="statErr">–</div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">worst slot fit</div>
+                <div class="stat-val" id="statWorst">–</div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">bsp splits</div>
+                <div class="stat-val" id="statSplits">–</div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">slots</div>
+                <div class="stat-val" id="statSlots">–</div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">engine state</div>
+                <div class="stat-val" id="statEngine">ready</div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="tooltip" id="tooltip"></div>
+
+    <script type="module" src="v6demo.js"></script>
+</body>
+
+</html>
