@@ -159,26 +159,158 @@ export class TransformEngine {
     }
 }
 
+export class PolygonMath {
+    static pointInPolygon(p, polygon) {
+        let inside = false;
+        for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+            const xi = polygon[i].x, yi = polygon[i].y;
+            const xj = polygon[j].x, yj = polygon[j].y;
+            const intersect = ((yi > p.y) !== (yj > p.y)) &&
+                (p.x < (xj - xi) * (p.y - yi) / (yj - yi) + xi);
+            if (intersect) inside = !inside;
+        }
+        return inside;
+    }
+
+    static getPointToEdgeDistance(p, p1, p2) {
+        let x = p1.x, y = p1.y, dx = p2.x - x, dy = p2.y - y;
+        if (dx !== 0 || dy !== 0) {
+            const t = ((p.x - x) * dx + (p.y - y) * dy) / (dx * dx + dy * dy);
+            if (t > 1) { x = p2.x; y = p2.y; }
+            else if (t > 0) { x += dx * t; y += dy * t; }
+        }
+        dx = p.x - x; dy = p.y - y;
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    static getPolylineDistance(p, polygon) {
+        let minDist = Infinity;
+        for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+            minDist = Math.min(minDist, this.getPointToEdgeDistance(p, polygon[i], polygon[j]));
+        }
+        return minDist;
+    }
+
+    static getVisualCenter(polygon, precision = 1.0) {
+        if (!polygon?.length) return { x: 0, y: 0, distance: 0 };
+        const bounds = computeBounds(polygon);
+        if (bounds.w === 0 || bounds.h === 0) return { x: bounds.x, y: bounds.y, distance: 0 };
+        
+        const getDist = (x, y) => {
+            const dist = this.getPolylineDistance({ x, y }, polygon);
+            return this.pointInPolygon({ x, y }, polygon) ? dist : -dist;
+        };
+
+        let bestPoint = { x: bounds.x + bounds.w / 2, y: bounds.y + bounds.h / 2, distance: -Infinity };
+        bestPoint.distance = getDist(bestPoint.x, bestPoint.y);
+
+        // Initial Grid Sampling
+        const step = Math.min(bounds.w, bounds.h) / 4;
+        for (let x = bounds.x + step; x < bounds.x + bounds.w; x += step) {
+            for (let y = bounds.y + step; y < bounds.y + bounds.h; y += step) {
+                const d = getDist(x, y);
+                if (d > bestPoint.distance) bestPoint = { x, y, distance: d };
+            }
+        }
+
+        const refine = (cellX, cellY, size) => {
+            const h = size / 2;
+            const cx = cellX + h, cy = cellY + h;
+            const dist = getDist(cx, cy);
+            
+            if (dist > bestPoint.distance) {
+                bestPoint = { x: cx, y: cy, distance: dist };
+            }
+            
+            if (size <= precision) return;
+            
+            // Pruning: if the max possible distance in this cell is less than bestPoint.distance, skip
+            if (dist + size * 0.7071 <= bestPoint.distance) return;
+
+            refine(cellX, cellY, h);
+            refine(cellX + h, cellY, h);
+            refine(cellX, cellY + h, h);
+            refine(cellX + h, cellY + h, h);
+        };
+
+        refine(bounds.x, bounds.y, Math.max(bounds.w, bounds.h));
+        return bestPoint;
+    }
+}
+
 export class ImageMath {
     static clamp(v, mn, mx) { return Math.max(mn, Math.min(mx, v)); }
 
-    static calculateRect(bounds, imgW, imgH, mode = 'fill', focalPoint = { x: 0.5, y: 0.5 }, userTransform = null) {
-        const br = bounds.w / bounds.h, ir = imgW / imgH;
+    static calculateRect(slot, imgW, imgH, options = {}) {
+        const mode = options.mode || 'fill';
+        const focalPoint = options.focalPoint || { x: 0.5, y: 0.5 };
+        const userTransform = options.userTransform || null;
+        const containmentBuffer = options.containmentBuffer || 1.0;
+        const maxScaleOverfill = options.maxScaleOverfill || 2.0;
+
+        const points = slot.points || [];
+        const rotation = slot.rotation || 0;
+        const bounds = slot.bounds || computeBounds(points);
+        const visualCenter = (points.length >= 3) ? PolygonMath.getVisualCenter(points) : { x: bounds.x + bounds.w / 2, y: bounds.y + bounds.h / 2 };
+
+        const ir = imgW / imgH;
         let finalW, finalH;
-        if (mode === 'fill') {
-            if (br > ir) { finalW = bounds.w; finalH = bounds.w / ir; }
-            else { finalH = bounds.h; finalW = bounds.h * ir; }
+
+        if (mode === 'fill' && points.length >= 3) {
+            // Minimal scale calculation to cover all vertices
+            let maxDistW = 0, maxDistH = 0;
+            // $O(N)$ circumcircle optimization (simple version: max distance in each axis relative to VC)
+            for (const p of points) {
+                maxDistW = Math.max(maxDistW, Math.abs(p.x - visualCenter.x));
+                maxDistH = Math.max(maxDistH, Math.abs(p.y - visualCenter.y));
+            }
+            
+            // Required W/H to cover the distance from visual center
+            let reqW = (maxDistW * 2) + containmentBuffer;
+            let reqH = (maxDistH * 2) + containmentBuffer;
+
+            // Maintain image aspect ratio
+            if (reqW / reqH > ir) {
+                finalW = reqW;
+                finalH = reqW / ir;
+            } else {
+                finalH = reqH;
+                finalW = reqH * ir;
+            }
+
+            // Aspect Ratio Clamping
+            const aabbScaleW = finalW / bounds.w;
+            const aabbScaleH = finalH / bounds.h;
+            const maxScale = Math.max(aabbScaleW, aabbScaleH);
+            if (maxScale > maxScaleOverfill) {
+                const ratio = maxScaleOverfill / maxScale;
+                finalW *= ratio;
+                finalH *= ratio;
+            }
         } else {
-            if (br > ir) { finalH = bounds.h; finalW = bounds.h * ir; }
-            else { finalW = bounds.w; finalH = bounds.w / ir; }
+            // Default AABB Fallback for rects or mode='fit'
+            const br = bounds.w / bounds.h;
+            if (mode === 'fill') {
+                if (br > ir) { finalW = bounds.w; finalH = bounds.w / ir; }
+                else { finalH = bounds.h; finalW = bounds.h * ir; }
+            } else {
+                if (br > ir) { finalH = bounds.h; finalW = bounds.h * ir; }
+                else { finalW = bounds.w; finalH = bounds.w / ir; }
+            }
         }
-        let x = bounds.x + (bounds.w - finalW) / 2;
-        let y = bounds.y + (bounds.h - finalH) / 2;
+
+        let x = visualCenter.x - finalW / 2;
+        let y = visualCenter.y - finalH / 2;
+
         if (mode === 'fill') {
             const fx = this.clamp(focalPoint.x, 0, 1), fy = this.clamp(focalPoint.y, 0, 1);
-            x += (bounds.w - finalW) * (0.5 - fx);
-            y += (bounds.h - finalH) * (0.5 - fy);
+            x += (visualCenter.x - (x + finalW / 2)) * (0.5 - fx); // Adjusted for VC
+            y += (visualCenter.y - (y + finalH / 2)) * (0.5 - fy);
+            // Re-center focal point logic around the Visual Center
+            x -= (fx - 0.5) * (finalW - bounds.w);
+            y -= (fy - 0.5) * (finalH - bounds.h);
         }
+
         if (userTransform) {
             const scale = Math.max(1e-4, userTransform.scale || 1.0);
             const scaledW = finalW * scale, scaledH = finalH * scale;
@@ -394,9 +526,11 @@ export class LayoutEngineV6 extends BaseEventTarget {
             let assetRect = null, assetData = null;
             const fitBounds = slot.unrotatedBounds || slot.bounds;
             if (image && fitBounds) {
-                assetRect = ImageMath.calculateRect(fitBounds, image.width, image.height,
-                    slot.components?.image?.mode || slot.mode || 'fill',
-                    image.focalPoint, userTransform);
+                assetRect = ImageMath.calculateRect(slot, image.width, image.height, {
+                    mode: slot.components?.image?.mode || slot.mode || 'fill',
+                    focalPoint: image.focalPoint,
+                    userTransform
+                });
                 assetData = image;
             } else if (text && fitBounds) {
                 const tb = { ...fitBounds };
