@@ -1,6 +1,7 @@
 /**
  * canvasRenderer.js — Canvas-specific rendering logic for LayoutEngineV6.
  */
+import { transformPath } from './shapesFactory.js';
 
 export const PALETTE = [
     { bg: '#b5d4f4', fg: '#042c53', accent: '#3b82f6' },
@@ -66,17 +67,42 @@ export function drawRenderGraph(ctx, renderGraph, imageRatios, W, H, planes = []
         const { x, y, w, h } = bounds;
         const r = 5;
 
+        // --- Path Creation ---
+        let path;
+        if (node.shapeId) {
+            const pathString = transformPath(node.shapeId, bounds);
+            path = new Path2D(pathString);
+        } else if (node.points?.length > 2) {
+            path = new Path2D();
+            path.moveTo(node.points[0].x, node.points[0].y);
+            for (let i = 1; i < node.points.length; i++) {
+                path.lineTo(node.points[i].x, node.points[i].y);
+            }
+            path.closePath();
+        } else {
+            // Fallback for simple rects that didn't get polygon points
+            path = new Path2D();
+            path.roundRect(x, y, w, h, r);
+        }
+
         // Fill background
         ctx.fillStyle = pal.bg;
-        ctx.beginPath();
-        ctx.roundRect(x, y, w, h, r);
-        ctx.fill();
+        ctx.fill(path);
+
+        // Strategy 1: Sibling Visualization
+        if (node.siblingId) {
+            ctx.strokeStyle = pal.accent;
+            ctx.lineWidth = 2;
+            ctx.globalAlpha = 0.5;
+            ctx.setLineDash([2, 2]);
+            ctx.stroke(path);
+            ctx.setLineDash([]);
+            ctx.globalAlpha = 1;
+        }
 
         // Subtle crosshatch pattern
         ctx.save();
-        ctx.beginPath();
-        ctx.roundRect(x, y, w, h, r);
-        ctx.clip();
+        ctx.clip(path);
         ctx.strokeStyle = pal.fg;
         ctx.globalAlpha = 0.055;
         ctx.lineWidth = 1;

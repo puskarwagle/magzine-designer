@@ -46,16 +46,15 @@
                     <input type="range" id="bleedSlider" min="0" max="12" value="0" step="1">
                     <label>bleed</label>
                 </div>
-                <div class="ctrl">
-                    <div style="height:12px"></div> <!-- spacer for val -->
-                    <select id="ratioPreset">
-                        <option value="mixed">mixed</option>
-                        <option value="portrait">portrait</option>
-                        <option value="landscape">landscape</option>
-                        <option value="square">square</option>
-                        <option value="random">random</option>
-                    </select>
-                    <label>ratios</label>
+                <div class="ctrl" id="ratio-buttons-parent">
+                    <div id="ratio-buttons">
+                        <button class="ratio-btn active" data-preset="mixed">Mixed</button>
+                        <button class="ratio-btn" data-preset="portrait">Portrait</button>
+                        <button class="ratio-btn" data-preset="landscape">Landscape</button>
+                        <button class="ratio-btn" data-preset="square">Square</button>
+                        <button class="ratio-btn" data-preset="random">Random</button>
+                    </div>
+                    
                 </div>
                 <div class="ctrl" id="spreadToggle">
                     <div style="height:12px"></div>
@@ -121,6 +120,12 @@
             </div>
         </div>
 
+        <div class="palette-container">
+            <h4>SHAPES LIBRARY</h4>
+            <div class="shape-palette" id="shape-palette">
+                <!-- Shapes will be dynamically added by v6demo.js -->
+            </div>
+        </div>
     </div>
 
     <div class="tooltip" id="tooltip"></div>

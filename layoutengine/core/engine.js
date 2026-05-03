@@ -3,6 +3,8 @@
  * (Based on layoutengineV6.ts)
  */
 
+import { samplePolygon } from '../modules/shapesFactory.js';
+
 export const computeBounds = (points) => {
     if (!points.length) return { x: 0, y: 0, w: 0, h: 0 };
     let minX = points[0].x, minY = points[0].y, maxX = points[0].x, maxY = points[0].y;
@@ -406,7 +408,34 @@ export class LayoutEngineV6 extends BaseEventTarget {
     };
 
     loadTemplates(templates) {
-        for (const t of templates) {
+        for (let t of templates) {
+            // Strategy 1: Legacy Compatibility - Auto-convert rects to polygons
+            if (t.slots) {
+                t.slots = t.slots.map(slot => {
+                    const workingShape = slot.shape || slot.components?.mask?.shape || { type: 'rectangle', width: 1, height: 1 };
+                    if (workingShape.type === 'rectangle' || (!workingShape.points && !workingShape.commands)) {
+                        const x = workingShape.x ?? 0;
+                        const y = workingShape.y ?? 0;
+                        const w = workingShape.width ?? workingShape.w ?? 1;
+                        const h = workingShape.height ?? workingShape.h ?? 1;
+                        
+                        // Convert to polygon
+                        const points = [
+                            { x: x, y: y },
+                            { x: x + w, y: y },
+                            { x: x + w, y: y + h },
+                            { x: x, y: y + h }
+                        ];
+                        
+                        return {
+                            ...slot,
+                            shape: { type: 'polygon', points }
+                        };
+                    }
+                    return slot;
+                });
+            }
+
             const errs = this.#validateTemplate(t);
             if (errs.length) { console.warn(`Template ${t.id}:`, errs); continue; }
             this.#registry.set(t.id, t);
@@ -590,6 +619,39 @@ export class LayoutEngineV6 extends BaseEventTarget {
     getSlotCount() { return this.#state.slots.length; }
     getTemplateId() { return this.#state.template?.id || null; }
 
+    setSlotShape(slotId, shapeId) {
+        console.log(`[Engine] setSlotShape called for slotId: ${slotId}, shapeId: ${shapeId}`);
+        const template = this.#state.template;
+        if (!template) {
+            console.log(`[Engine] No template found.`);
+            return;
+        }
+
+        const slotIndex = template.slots.findIndex(s => s.slotId === slotId);
+        if (slotIndex === -1) {
+            console.log(`[Engine] Slot ${slotId} not found.`);
+            return;
+        }
+
+        const newTemplate = { ...template, slots: [...template.slots] };
+        newTemplate.slots[slotIndex] = { ...newTemplate.slots[slotIndex], shapeId };
+        
+        this.#state.template = newTemplate;
+        
+        // Clear geometry cache for this specific slot and re-process
+        this.#slotGeometryCache.forEach((value, key) => {
+            if (key.startsWith(slotId)) {
+                this.#slotGeometryCache.delete(key);
+                console.log(`[Engine] Cleared cache for slot: ${slotId}`);
+            }
+        });
+
+        this.#processSlots();
+        this.#saveState();
+        this.#dispatchStateChange();
+        console.log(`[Engine] setSlotShape completed for slotId: ${slotId}, shapeId: ${shapeId}`);
+    }
+
     getLayoutPlanes(config) {
         const cfg = config || this.#state.config;
         const { width, height, isSpread, spineWidth, margins } = cfg;
@@ -654,19 +716,21 @@ export class LayoutEngineV6 extends BaseEventTarget {
     }
 
     #processSlots() {
+        console.log(`[Engine] #processSlots started. Template ID: ${this.#state.template?.id}`);
         if (!this.#state.template || !this.#state.config) return;
         const { width, height, bleed, isSpread, spineWidth, margins } = this.#state.config;
         const planes = this.getLayoutPlanes();
 
         this.#state.slots = this.#state.template.slots.map(slot => {
-            const cacheKey = `${slot.slotId}_${width}_${height}_${bleed}_${isSpread}_${spineWidth}_${JSON.stringify(margins)}_${slot.rotation}_${JSON.stringify(slot.pivot)}_${JSON.stringify(slot.anchors)}`;
-            if (this.#slotGeometryCache.has(cacheKey)) return this.#slotGeometryCache.get(cacheKey);
+            const cacheKey = `${slot.slotId}_${width}_${height}_${bleed}_${isSpread}_${JSON.stringify(margins)}_${slot.rotation}_${slot.pivot || ''}_${slot.shapeId || ''}`;
+            if (this.#slotGeometryCache.has(cacheKey)) {
+                console.log(`[Engine] Using cached geometry for slot: ${slot.slotId}`);
+                return this.#slotGeometryCache.get(cacheKey);
+            }
 
             const workingShape = slot.shape || slot.components?.mask?.shape || { type: 'rectangle', width: 1, height: 1 };
-            let shapeToUse = { ...workingShape };
 
-            // Determine which plane/coordinate space to use
-            // If template specifies a page, or if we want to map into the usable content area
+            // Determine target plane
             let targetRect = { x: 0, y: 0, w: width, h: height };
             if (slot.page === 'left' && planes.length > 1) {
                 targetRect = planes[0].content;
@@ -676,15 +740,41 @@ export class LayoutEngineV6 extends BaseEventTarget {
                 targetRect = planes[0].content;
             }
 
-            if (slot.anchors && workingShape.type === 'rectangle') {
-                shapeToUse.x = targetRect.x + (slot.anchors.left ?? 0) * targetRect.w;
-                shapeToUse.y = targetRect.y + (slot.anchors.top ?? 0) * targetRect.h;
-                shapeToUse.width = (slot.anchors.width ?? 1) * targetRect.w;
-                shapeToUse.height = (slot.anchors.height ?? 1) * targetRect.h;
+            // --- Step 1: Get the initial geometry in absolute coordinates ---
+            let initialGeom;
+            if (slot.anchors) {
+                // For anchor-based rects, which define their own absolute bounds
+                const rect = {
+                    x: targetRect.x + (slot.anchors.left ?? 0) * targetRect.w,
+                    y: targetRect.y + (slot.anchors.top ?? 0) * targetRect.h,
+                    w: (slot.anchors.width ?? 1) * targetRect.w,
+                    h: (slot.anchors.height ?? 1) * targetRect.h
+                };
+                initialGeom = ShapeFactory.toPolygon({ type: 'rectangle', ...rect }, { width: 1, height: 1 });
+                console.log(`[Engine] Slot ${slot.slotId}: initialGeom from anchors`, initialGeom);
+            } else {
+                // For shape-based slots (like from BSP) with normalized points relative to the plane
+                const scale = { width: targetRect.w, height: targetRect.h };
+                let geom = ShapeFactory.toPolygon(workingShape, scale);
+                const adjustedPoints = geom.points.map(p => ({ x: p.x + targetRect.x, y: p.y + targetRect.y }));
+                initialGeom = { points: adjustedPoints, bounds: computeBounds(adjustedPoints) };
+                console.log(`[Engine] Slot ${slot.slotId}: initialGeom from shape`, initialGeom);
             }
-            const scale = slot.anchors ? { width: 1, height: 1 } : { width, height };
-            const geom = ShapeFactory.toPolygon(shapeToUse, scale);
-            const tformed = TransformEngine.applyTransform(geom, slot.rotation, slot.pivot);
+
+            // --- Step 2: If custom shapeId is present, replace the geometry ---
+            let finalGeom;
+            if (slot.shapeId) {
+                const bounds = initialGeom.bounds; // Use bounds of the original shape
+                const points = samplePolygon(slot.shapeId, bounds);
+                finalGeom = { points, bounds: computeBounds(points) };
+                console.log(`[Engine] Slot ${slot.slotId}: Custom shape ${slot.shapeId} applied. FinalGeom:`, finalGeom);
+            } else {
+                finalGeom = initialGeom;
+                console.log(`[Engine] Slot ${slot.slotId}: No custom shape. FinalGeom:`, finalGeom);
+            }
+            
+            // --- Step 3: Apply transforms and bleed ---
+            const tformed = TransformEngine.applyTransform(finalGeom, slot.rotation, slot.pivot);
             const hasBleed = slot.bleed && bleed > 0;
             const adjPts = hasBleed ? GeometryMath.offsetPolygon(tformed.points, -bleed) : tformed.points;
 
@@ -692,13 +782,15 @@ export class LayoutEngineV6 extends BaseEventTarget {
                 ...slot,
                 points: adjPts,
                 bounds: hasBleed ? computeBounds(adjPts) : tformed.bounds,
-                unrotatedBounds: hasBleed ? computeBounds(GeometryMath.offsetPolygon(geom.points, -bleed)) : tformed.unrotatedBounds,
+                unrotatedBounds: hasBleed ? computeBounds(GeometryMath.offsetPolygon(finalGeom.points, -bleed)) : tformed.unrotatedBounds,
                 rotationMatrix: tformed.rotationMatrix,
                 zIndex: slot.zIndex || 1
             };
+            console.log(`[Engine] Slot ${slot.slotId}: Processed. Final points count: ${processed.points.length}`);
             this.#slotGeometryCache.set(cacheKey, processed);
             return processed;
         }).sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
+        console.log(`[Engine] #processSlots completed. Total slots processed: ${this.#state.slots.length}`);
     }
 
     #validateTemplate(template) {

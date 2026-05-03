@@ -4,8 +4,9 @@
  */
 
 import { LayoutEngineV6 } from '../core/engine.js';
-import { bspPartition, bspToTemplate, resetSplitCount, splitCount, groupByRatioBalance } from '../modules/bsp.js';
+import { bspPartition, resetSplitCount, splitCount, groupByRatioBalance } from '../modules/bsp.js';
 import { drawRenderGraph, PALETTE } from '../modules/renderer.js';
+import { getAllShapes } from '../modules/shapesFactory.js';
 
 // ============================================================================
 // APP STATE & CONSTANTS
@@ -63,21 +64,23 @@ function buildAndRender() {
     
     // If spread, split the image indices between pages (simple split for demo)
     let bspSlots = [];
+    const options = { allowDiagonal: true }; // Strategy 1: Enable diagonal splits
+
     if (isSpread && indices.length > 1) {
         // Use aspect ratios to find a natural split point
         const [leftGroupIndices, rightGroupIndices] = groupByRatioBalance(currentImageRatios);
         const leftIndices = leftGroupIndices.map(i => indices[i]);
         const rightIndices = rightGroupIndices.map(i => indices[i]);
         
-        const leftSlots = bspPartition(leftIndices, currentImageRatios, planes[0].content, gap);
-        const rightSlots = bspPartition(rightIndices, currentImageRatios, planes[1].content, gap);
+        const leftSlots = bspPartition(leftIndices, currentImageRatios, planes[0].content, gap, options);
+        const rightSlots = bspPartition(rightIndices, currentImageRatios, planes[1].content, gap, options);
         
         // Mark which page they belong to
         leftSlots.forEach(s => s.page = 'left');
         rightSlots.forEach(s => s.page = 'right');
         bspSlots = [...leftSlots, ...rightSlots];
     } else {
-        const slots = bspPartition(indices, currentImageRatios, planes[0].content, gap);
+        const slots = bspPartition(indices, currentImageRatios, planes[0].content, gap, options);
         slots.forEach(s => s.page = 'content');
         bspSlots = slots;
     }
@@ -91,13 +94,15 @@ function buildAndRender() {
             _imageIndex: s.imageIndex,
             page: s.page,
             type: 'image',
-            anchors: {
-                left: (s.rect.x - (s.page === 'right' ? planes[1].content.x : (s.page === 'left' ? planes[0].content.x : planes[0].content.x))) / (s.page === 'content' ? planes[0].content.w : (s.page === 'left' ? planes[0].content.w : planes[1].content.w)),
-                top: (s.rect.y - (s.page === 'right' ? planes[1].content.y : (s.page === 'left' ? planes[0].content.y : planes[0].content.y))) / (s.page === 'content' ? planes[0].content.h : (s.page === 'left' ? planes[0].content.h : planes[1].content.h)),
-                width: s.rect.w / (s.page === 'content' ? planes[0].content.w : (s.page === 'left' ? planes[0].content.w : planes[1].content.w)),
-                height: s.rect.h / (s.page === 'content' ? planes[0].content.h : (s.page === 'left' ? planes[0].content.h : planes[1].content.h))
+            // Strategy 1: Use Polygons instead of rect anchors for generated layouts
+            shape: { 
+                type: 'polygon', 
+                points: s.points.map(p => ({ 
+                    x: p.x / W, 
+                    y: p.y / H 
+                })) 
             },
-            shape: { type: 'rectangle', width: 1, height: 1 },
+            siblingId: s.siblingId,
             bleed: true,
             zIndex: idx + 1
         }))
@@ -158,7 +163,7 @@ function render() {
 
 function regenerate() {
     const n = parseInt(document.getElementById('imgCount').value);
-    const preset = document.getElementById('ratioPreset').value;
+    const preset = document.querySelector('.ratio-btn.active').dataset.preset;
     currentImageRatios = getAspectRatios(preset, n);
     buildAndRender();
 }
@@ -218,7 +223,15 @@ document.getElementById('bleedSlider').oninput = function () {
     document.getElementById('bleedVal').textContent = this.value;
     buildAndRender();
 };
-document.getElementById('ratioPreset').onchange = regenerate;
+
+document.querySelectorAll('.ratio-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelector('.ratio-btn.active').classList.remove('active');
+        btn.classList.add('active');
+        regenerate();
+    });
+});
+
 document.getElementById('spreadToggle').onclick = function () {
     isSpreadState = !isSpreadState;
     this.classList.toggle('spread-active', isSpreadState);
@@ -306,6 +319,50 @@ canvas.addEventListener('click', (e) => {
     }
 });
 
+// Drag and Drop for shapes
+canvas.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    canvas.classList.add('canvas-drag-over');
+});
+canvas.addEventListener('dragleave', () => {
+    canvas.classList.remove('canvas-drag-over');
+});
+canvas.addEventListener('drop', (e) => {
+    console.log(`[v6demo] Drop event triggered.`);
+    e.preventDefault();
+    canvas.classList.remove('canvas-drag-over');
+
+    console.log(`[v6demo] DataTransfer types: ${e.dataTransfer.types.join(', ')}`);
+    const shapeId = e.dataTransfer.getData('text/plain');
+    console.log(`[v6demo] Dropped shapeId: ${shapeId}`);
+    if (!shapeId) {
+        console.log(`[v6demo] No shapeId found in dataTransfer.`);
+        return;
+    }
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = W / rect.width, scaleY = H / rect.height;
+    const mx = (e.clientX - rect.left) * scaleX;
+    const my = (e.clientY - rect.top) * scaleY;
+
+    const graph = engine.getRenderGraph();
+    let foundNode = null;
+    for (const node of graph) {
+        const b = node.unrotatedBounds || node.bounds;
+        if (b && mx >= b.x && mx <= b.x + b.w && my >= b.y && my <= b.y + b.h) {
+            foundNode = node;
+            break;
+        }
+    }
+
+    if (foundNode) {
+        console.log(`[v6demo] Found slot ${foundNode.slotId} at drop coordinates.`);
+        engine.setSlotShape(foundNode.slotId, shapeId);
+        // Re-render will be triggered by the engine's 'stateChanged' event
+    } else {
+        console.log(`[v6demo] No slot found at drop coordinates.`);
+    }
+});
 // Engine listener
 engine.addEventListener('stateChanged', () => {
     updateUndoRedo();
@@ -314,3 +371,31 @@ engine.addEventListener('stateChanged', () => {
 
 // INITIALIZE
 regenerate();
+initializeShapePalette();
+
+// ============================================================================
+// SHAPE PALETTE & DRAG-DROP
+// ============================================================================
+
+function initializeShapePalette() {
+    const palette = document.getElementById('shape-palette');
+    if (!palette) return;
+    const shapes = getAllShapes();
+    palette.innerHTML = shapes.map(shape => `
+        <div class="shape-item" draggable="true" data-shape-id="${shape.id}" title="${shape.label}">
+            <svg viewBox="0 0 1 1" preserveAspectRatio="xMidYMid meet">
+                <path d="${shape.svgPath}"></path>
+            </svg>
+            <span>${shape.label}</span>
+        </div>
+    `).join('');
+    
+    document.querySelectorAll('.shape-item').forEach(item => {
+        item.addEventListener('dragstart', handleDragStart);
+    });
+}
+
+function handleDragStart(e) {
+    e.dataTransfer.setData('text/plain', e.target.closest('.shape-item').dataset.shapeId);
+    e.dataTransfer.effectAllowed = 'copy';
+}
